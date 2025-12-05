@@ -1,22 +1,24 @@
 import { View, Text, TouchableOpacity, Image, FlatList } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
+import { useUser } from "@clerk/clerk-expo";
 
 const Community = () => {
   const router = useRouter();
-  const [liked,setLiked] = useState<boolean>(false)
+  const [liked, setLiked] = useState<boolean>(false)
   const [likes, setLikes] = useState<Number>(0)
+  const user = useUser().user?.id || "";
 
 
   type Post = {
-  id: number;
-  userId: string | null;
-  anonymous: boolean;
-  description: string;
-  image?: string | null;
-  likes: number;
-  createdAt: string;
-};
+    id: number;
+    userId: string | null;
+    anonymous: boolean;
+    description: string;
+    image?: string | null;
+    likes: number;
+    createdAt: string;
+  };
   const [posts, setPosts] = useState<Post[]>([]);
 
 
@@ -46,54 +48,103 @@ const Community = () => {
     })();
   }, []);
 
-  const likePost = (postId: number) => {
-    if (liked) return; // Prevent multiple likes
+  const likePost = async (postId: number) => {
+    // Optimistically update UI
+    const wasLiked = liked;
+    const likeDelta = wasLiked ? -1 : 1;
+
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
-        post.id === postId ? { ...post, likes: post.likes + 1 } : post
+        post.id === postId
+          ? { ...post, likes: post.likes + likeDelta }
+          : post
       )
     );
-    setLiked(true);
+    setLiked(!wasLiked);
+
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.12:3001";
+      const response = await fetch(`${apiUrl}/post/like`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          postId:postId,
+          userId:user
+        }), 
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Update with server's authoritative state
+      if (data.success) {
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId
+              ? { ...post, likes: data.likes }
+              : post
+          )
+        );
+        setLiked(data.liked);
+        console.log("Like toggled successfully:", data);
+      }
+    } catch (err) {
+      // Rollback optimistic update on error
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? { ...post, likes: post.likes - likeDelta }
+            : post
+        )
+      );
+      setLiked(wasLiked);
+      console.error("Error toggling like:", err);
+    }
   };
 
 
   const renderItem = ({ item }: { item: Post }) => (
-  <View
-    style={{
-      backgroundColor: "#fff",
-      marginBottom: 15,
-      padding: 15,
-      borderRadius: 10,
-      elevation: 2,
-    }}
-  >
-    <Text style={{ fontWeight: "bold", marginBottom: 5 }}>
-      {item.anonymous ? "Anonymous" : item.userId?.slice(0, 6)}
-    </Text>
+    <View
+      style={{
+        backgroundColor: "#fff",
+        marginBottom: 15,
+        padding: 15,
+        borderRadius: 10,
+        elevation: 2,
+      }}
+    >
+      <Text style={{ fontWeight: "bold", marginBottom: 5 }}>
+        {item.anonymous ? "Anonymous" : item.userId?.slice(0, 6)}
+      </Text>
 
-    {item.image && (
-      <Image
-        source={{ uri: item.image }}
-        style={{
-          width: "100%",
-          height: 250,
-          borderRadius: 10,
-          marginBottom: 10,
-        }}
-      />
-    )}
+      {item.image && (
+        <Image
+          source={{ uri: item.image }}
+          style={{
+            width: "100%",
+            height: 250,
+            borderRadius: 10,
+            marginBottom: 10,
+          }}
+        />
+      )}
 
-    <Text style={{ fontSize: 14, marginBottom: 10 }}>
-      {item.description}
-    </Text>
+      <Text style={{ fontSize: 14, marginBottom: 10 }}>
+        {item.description}
+      </Text>
 
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
-      <TouchableOpacity>
-        <Text style={{ fontWeight: "bold" }} onPress={()=>likePost(item.id)}>❤️ {item.likes}</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <TouchableOpacity>
+          <Text style={{ fontWeight: "bold" }} onPress={() => likePost(item.id)}>❤️ {item.likes}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
-  </View>
-);
+  );
 
 
   return (
