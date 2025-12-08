@@ -131,10 +131,29 @@ const Community = () => {
     }
   };
 
+  const deletePost = async (postId: number) => {
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://172.16.252.116:3001"
+      const response = await fetch(`${apiUrl}/post/${postId}/user/${user}`, {
+        method: "DELETE",
+      }); 
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+      const data = await response.json();
+      if (data.success) {
+        setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+      }
+    } catch (err) {
+      console.error("Error deleting post:", err);
+    }
+  };
+
   const renderPost = ({ item }: { item: Post }) => {
     const isLiked = likedPosts.has(item.id);
+    const isMyPost = item.userId === user;
 
     return (
+      <ScrollView>
       <View style={{
         backgroundColor: "#fff",
         marginBottom: 1,
@@ -171,6 +190,18 @@ const Community = () => {
             )}
           </View>
           <Text style={{ fontSize: 20 }}>•••</Text>
+
+          {isMyPost && (
+            <TouchableOpacity
+              onPress={() => deletePost(item.id)}
+              style={{
+                padding: 8,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ fontSize: 16, color: "#ef4444" }}>🗑️</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Image */}
@@ -229,6 +260,7 @@ const Community = () => {
           </Text>
         </View>
       </View>
+      </ScrollView>
     );
   };
 

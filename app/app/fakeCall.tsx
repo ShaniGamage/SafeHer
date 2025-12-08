@@ -1,12 +1,15 @@
 import { View, Text, TouchableOpacity, Image, Animated } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
+import {FontAwesome5} from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const FakeCall = () => {
   const router = useRouter();
   const [callAnswered, setCallAnswered] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
 
   // Pulsing animation for incoming call
   useEffect(() => {
@@ -61,11 +64,16 @@ const FakeCall = () => {
   if (callAnswered) {
     // Active Call Screen
     return (
+      <LinearGradient
+            colors={['#4A0E4E', 'black', 'black']}
+            style={{ flex: 1 }}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+          >
       <View style={{
         flex: 1,
-        backgroundColor: '#1c1c1e',
         justifyContent: 'space-between',
-        paddingVertical: 60,
+        paddingVertical: 80,
         paddingHorizontal: 20,
       }}>
         {/* Top Section - Caller Info */}
@@ -79,7 +87,7 @@ const FakeCall = () => {
             alignItems: 'center',
             marginBottom: 20,
           }}>
-            <Text style={{ fontSize: 48, color: '#fff' }}>👤</Text>
+            <FontAwesome5 name="user" size={30} color='white'/>
           </View>
           
           <Text style={{
@@ -108,45 +116,45 @@ const FakeCall = () => {
         }}>
           <View style={{ alignItems: 'center' }}>
             <TouchableOpacity style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
+              width: 70,
+              height: 70,
+              borderRadius: 40,
               backgroundColor: '#3a3a3c',
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 8,
             }}>
-              <Text style={{ fontSize: 24 }}>🔇</Text>
+              <Text style={{ fontSize: 24 }}><FontAwesome5 name='volume-mute' size={30} color='white'/></Text>
             </TouchableOpacity>
             <Text style={{ color: '#fff', fontSize: 12 }}>mute</Text>
           </View>
 
           <View style={{ alignItems: 'center' }}>
             <TouchableOpacity style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
+              width: 70,
+              height: 70,
+              borderRadius: 40,
               backgroundColor: '#3a3a3c',
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 8,
             }}>
-              <Text style={{ fontSize: 24 }}>⏸️</Text>
+              <Text style={{ fontSize: 24 }}><FontAwesome5 name='pause' size={30} color='white'/></Text>
             </TouchableOpacity>
             <Text style={{ color: '#fff', fontSize: 12 }}>hold</Text>
           </View>
 
           <View style={{ alignItems: 'center' }}>
             <TouchableOpacity style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
+              width: 70,
+              height: 70,
+              borderRadius: 40,
               backgroundColor: '#3a3a3c',
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 8,
             }}>
-              <Text style={{ fontSize: 24 }}>🔊</Text>
+              <Text style={{ fontSize: 24 }}><FontAwesome5 name='volume-up' size={30} color='white'/></Text>
             </TouchableOpacity>
             <Text style={{ color: '#fff', fontSize: 12 }}>speaker</Text>
           </View>
@@ -157,26 +165,32 @@ const FakeCall = () => {
           <TouchableOpacity
             onPress={handleEndCall}
             style={{
-              width: 70,
-              height: 70,
-              borderRadius: 35,
+              width: 80,
+              height: 80,
+              borderRadius: 45,
               backgroundColor: '#ef4444',
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 32, transform: [{ rotate: '135deg' }] }}>📞</Text>
+            <Text style={{ fontSize: 36, transform: [{ rotate: '225deg' }] }}><FontAwesome5 name="phone" size={30} color='white'/></Text>
           </TouchableOpacity>
         </View>
       </View>
+      </LinearGradient>
     );
   }
 
   // Incoming Call Screen
   return (
+    <LinearGradient
+          colors={['#4A0E4E', 'black', 'black']}
+          style={{ flex: 1 }}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        >
     <View style={{
       flex: 1,
-      backgroundColor: '#000',
       justifyContent: 'space-between',
       paddingVertical: 60,
       paddingHorizontal: 30,
@@ -204,7 +218,7 @@ const FakeCall = () => {
             justifyContent: 'center',
             alignItems: 'center',
           }}>
-            <Text style={{ fontSize: 64 }}>👤</Text>
+            <Text style={{ fontSize: 64 }}><FontAwesome5 name="user" size={40} color='white'/></Text>
           </View>
         </Animated.View>
 
@@ -242,7 +256,7 @@ const FakeCall = () => {
             alignItems: 'center',
             marginBottom: 8,
           }}>
-            <Text style={{ fontSize: 24 }}>⏰</Text>
+            <Text style={{ fontSize: 24 }}><FontAwesome5 name="clock" size={30} color='white'/></Text>
           </TouchableOpacity>
           <Text style={{ color: '#fff', fontSize: 13 }}>Remind Me</Text>
         </View>
@@ -257,7 +271,7 @@ const FakeCall = () => {
             alignItems: 'center',
             marginBottom: 8,
           }}>
-            <Text style={{ fontSize: 24 }}>💬</Text>
+            <Text style={{ fontSize: 24 }}><FontAwesome5 name="comment" size={30} color='white'/></Text>
           </TouchableOpacity>
           <Text style={{ color: '#fff', fontSize: 13 }}>Message</Text>
         </View>
@@ -268,7 +282,7 @@ const FakeCall = () => {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        paddingHorizontal: 50,
+        paddingHorizontal: 0,
       }}>
         {/* Decline */}
         <View style={{ alignItems: 'center' }}>
@@ -283,7 +297,7 @@ const FakeCall = () => {
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 36, transform: [{ rotate: '135deg' }] }}>📞</Text>
+            <Text style={{ fontSize: 36, transform: [{ rotate: '225deg' }] }}><FontAwesome5 name="phone" size={24} color='white'/></Text>
           </TouchableOpacity>
           <Text style={{
             color: '#fff',
@@ -307,7 +321,7 @@ const FakeCall = () => {
               alignItems: 'center',
             }}
           >
-            <Text style={{ fontSize: 36 }}>📞</Text>
+            <Text style={{ fontSize: 36 }}><FontAwesome5 name="phone" size={20} color='white'/></Text>
           </TouchableOpacity>
           <Text style={{
             color: '#fff',
@@ -319,6 +333,7 @@ const FakeCall = () => {
         </View>
       </View>
     </View>
+    </LinearGradient>
   );
 };
 

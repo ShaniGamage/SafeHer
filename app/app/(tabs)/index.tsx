@@ -95,7 +95,7 @@ export default function HomeScreen() {
         createdAt: new Date().toISOString(),
 
       }
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.60:3001';
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.116:3001';
       await fetch(`${apiUrl}/sos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,7 +122,7 @@ export default function HomeScreen() {
       }
 
       // Use the correct API URL based on your environment
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.60:3001';
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.116:3001';
       console.log('Fetching from:', `${apiUrl}/reports/mine`);
 
       const response = await fetch(`${apiUrl}/reports/mine`, {
@@ -180,44 +180,6 @@ export default function HomeScreen() {
   }
 
   return (
-    <>
-      {unsafe ? (
-        <ScrollView>
-          <View style={styles.header}>
-            <Text style={styles.title}>Address</Text>
-            <Text style={styles.subtitle}>{address || "Fetching address ..."}</Text>
-          </View>
-
-          <View style={styles.header}>
-            <TouchableOpacity onPress={sendSOS} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>SOS</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() =>
-                router.push({
-                  pathname: "/fakeCall", // make sure your file is at app/fakeCall.tsx
-                  params: { callerName: "Emergency Contact" },
-                })
-              }
-            >
-              <Text style={styles.retryButtonText}>Fake Incoming Call</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => setUnsafe(false)} // update unsafe state
-            >
-              <Text style={styles.retryButtonText}>I'm safe</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      ) : (
         <ScrollView>
           <View style={styles.header}>
             <Text style={styles.title}>Dashboard</Text>
@@ -272,9 +234,6 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       )}
-    </>
-  );
-}
 {/* <TouchableOpacity style={styles.refreshButton} onPress={fetchReports}>
         <Text style={styles.refreshButtonText}>Refresh Data</Text>
       </TouchableOpacity> */}
