@@ -7,11 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  RefreshControl,
   Alert,
+  TextInput,
+  Image
 } from 'react-native';
 import * as Location from "expo-location"
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome5 } from '@expo/vector-icons';
+
+const apiUrl = process.env.EXPO_PUBLIC_API_URL
 
 export default function HomeScreen() {
   const { getToken } = useAuth();
@@ -21,22 +26,44 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<any>(null)
   const [address, setAddress] = useState<string>('')
-  const [unsafe, setUnsafe] = useState<boolean>(true)
-
+  const [unsafe, setUnsafe] = useState<boolean>(false)
+  const [sosCount, setSosCount] = useState<number>(0)
+  const [harassmentCount, setHarassmentCount] = useState<number>(0)
+  const [loadingCounts, setLoadingCounts] = useState(false)
+  const [vehicleNo, setVehicleNo] = useState<string>('')
+  const [harassmentReports, setHarassmentReports] = useState<any>(null);
+  const [searchingVehicle, setSearchingVehicle] = useState(false);
+  const [region, setRegion] = useState({
+    latitude: 6.9271,
+    longitude: 79.8612,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
   const router = useRouter()
 
   useEffect(() => {
     (async () => {
       setUnsafe(true)
+      setLoadingCounts(true)
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           Alert.alert("Permission denied", "Location access is required.");
+          setLoadingCounts(false);
           return;
         }
 
         const loc = await Location.getCurrentPositionAsync({});
         setLocation(loc);
+
+        // Update region with current location
+        const currentRegion = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        };
+        setRegion(currentRegion);
 
         // get address
         const geo = await Location.reverseGeocodeAsync({
@@ -54,18 +81,73 @@ export default function HomeScreen() {
             item.region,
             item.country,
             item.postalCode
-          ].filter(part => part); // Remove null/undefined/empty values
-
+          ].filter(part => part);
           const fullAddress = addressParts.join(', ');
           setAddress(fullAddress);
-          console.log(address)
+          console.log('Address:', fullAddress)
+        }
+
+        // Calculate bounds around current location
+        const bounds = {
+          minLat: currentRegion.latitude - currentRegion.latitudeDelta / 2,
+          maxLat: currentRegion.latitude + currentRegion.latitudeDelta / 2,
+          minLng: currentRegion.longitude - currentRegion.longitudeDelta / 2,
+          maxLng: currentRegion.longitude + currentRegion.longitudeDelta / 2,
+        };
+
+        console.log('Fetching heatmap with bounds:', bounds);
+
+        // Fetch heatmap data to get counts - USE POST METHOD
+        const response = await fetch(`${apiUrl}/safe-route/heatmap`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bounds),
+        });
+
+        console.log('Heatmap response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Heatmap data received:", data);
+
+          // Calculate total counts from features
+          if (data.features && data.features.length > 0) {
+            // Get the first feature's counts (they're the same across all features)
+            const firstFeature = data.features[0];
+            if (firstFeature.properties) {
+              const totalSos = firstFeature.properties.sosCount || 0;
+              const totalHarassment = firstFeature.properties.harassmentCount || 0;
+
+              console.log('SOS Count:', totalSos, 'Harassment Count:', totalHarassment);
+              setSosCount(totalSos);
+              setHarassmentCount(totalHarassment);
+
+              // Determine if area is unsafe (using stats total)
+              const totalIncidents = data.stats?.totalIncidents || 0;
+              setUnsafe(totalIncidents > 5);
+            }
+          } else {
+            // No incidents in area - safe zone
+            console.log('No incidents - safe area');
+            setSosCount(0);
+            setHarassmentCount(0);
+            setUnsafe(false);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to fetch heatmap data:', response.status, errorText);
+          Alert.alert('Error', 'Failed to load safety data');
         }
       } catch (err) {
-        console.log("Location error:", err);
+        console.error("Location/Heatmap error:", err);
+        Alert.alert('Error', 'Failed to get location data');
+      } finally {
+        setLoadingCounts(false);
       }
     })();
   }, []);
-
 
   const sendSOS = async () => {
     try {
@@ -93,9 +175,8 @@ export default function HomeScreen() {
         longitude: loc.coords.longitude,
         address: addressStr,
         createdAt: new Date().toISOString(),
-
       }
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.116:3001';
+
       await fetch(`${apiUrl}/sos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -104,25 +185,21 @@ export default function HomeScreen() {
 
       Alert.alert("SOS sent", "Your emergency contacts have been notified")
       console.log("payload for api", payload, apiUrl)
-
     } catch (error) {
       console.log("SOS error", error)
     }
   }
 
-
   const fetchReports = async () => {
     try {
       setLoading(true);
       setError(null);
-
       const token = await getToken();
+
       if (!token) {
         throw new Error('No authentication token');
       }
 
-      // Use the correct API URL based on your environment
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.116:3001';
       console.log('Fetching from:', `${apiUrl}/reports/mine`);
 
       const response = await fetch(`${apiUrl}/reports/mine`, {
@@ -156,7 +233,60 @@ export default function HomeScreen() {
     fetchReports();
   }, []);
 
+  const getReportsByVehicleNo = async (vehicleNumber: string) => {
+    if (!vehicleNumber.trim()) {
+      Alert.alert('Error', 'Please enter a vehicle number');
+      return;
+    }
 
+    try {
+      setSearchingVehicle(true);
+      setError(null);
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch(`${apiUrl}/report-harassment?vehicleNo=${encodeURIComponent(vehicleNumber)}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Vehicle reports received:', data);
+      setHarassmentReports(data);
+
+      // Show results summary
+      if (data && data.length > 0) {
+        Alert.alert(
+          'Reports Found',
+          `Found ${data.length} report(s) for vehicle ${vehicleNumber}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'No Reports',
+          `No reports found for vehicle ${vehicleNumber}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err: any) {
+      console.error('Fetch error:', err);
+      setError(err.message);
+      Alert.alert('Error', err.message);
+    } finally {
+      setSearchingVehicle(false);
+    }
+  }
 
   if (loading && !reports) {
     return (
@@ -180,64 +310,148 @@ export default function HomeScreen() {
   }
 
   return (
-        <ScrollView>
-          <View style={styles.header}>
-            <Text style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>
-              Welcome, {user?.firstName || 'User'}!
-            </Text>
-          </View>
+    <LinearGradient
+      colors={['#4A0E4E', 'black', 'black']}
+      style={{ flex: 1 }}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            Welcome, {user?.firstName || 'User'}!
+          </Text>
+        </View>
 
-          {reports && (
-            
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>User Information</Text>
+        <View style={styles.address}>
+          <Text style={styles.addressTxt}>
+            <FontAwesome5 name="map-marker-alt" size={20} color="white" /> {address}
+          </Text>
+        </View>
 
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Email:</Text>
-                <Text style={styles.value}>{reports.user?.email}</Text>
+        {/* Safety Statistics Card */}
+        <View style={styles.statsCard}>
+          <Text style={styles.statsTitle}>Area Safety Report</Text>
+          {loadingCounts ? (
+            <ActivityIndicator size="small" color="#FF1493" />
+          ) : (
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <FontAwesome5 name="bell" size={30} color="#FF4444" />
+                <Text style={styles.statNumber}>{sosCount}</Text>
+                <Text style={styles.statLabel}>SOS Alerts</Text>
               </View>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Role:</Text>
-                <Text style={[styles.value, styles.roleBadge]}>
-                  {reports.user?.role?.toUpperCase()}
-                </Text>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <FontAwesome5 name="exclamation-triangle" size={30} color="#FF9800" />
+                <Text style={styles.statNumber}>{harassmentCount}</Text>
+                <Text style={styles.statLabel}>Harassment Reports</Text>
               </View>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Name:</Text>
-                <Text style={styles.value}>
-                  {reports.user?.firstName} {reports.user?.lastName}
-                </Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>User ID:</Text>
-                <Text style={[styles.value, styles.smallText]} numberOfLines={1}>
-                  {reports.user?.id}
-                </Text>
-              </View>
-
-              {reports.message && (
-                <View style={styles.successBanner}>
-                  <Text style={styles.successText}>✓ {reports.message}</Text>
-                </View>
-              )}
-
-              {reports.timestamp && (
-                <Text style={styles.timestamp}>
-                  Last updated: {new Date(reports.timestamp).toLocaleString()}
-                </Text>
-              )}
             </View>
           )}
-        </ScrollView>
-      )}
-{/* <TouchableOpacity style={styles.refreshButton} onPress={fetchReports}>
-        <Text style={styles.refreshButtonText}>Refresh Data</Text>
-      </TouchableOpacity> */}
+          <View style={[styles.safetyBadge, unsafe ? styles.unsafeBadge : styles.safeBadge]}>
+            <FontAwesome5
+              name={unsafe ? "exclamation-circle" : "shield-alt"}
+              size={16}
+              color="white"
+            />
+            <Text style={styles.safetyText}>
+              {unsafe ? "High Risk Area" : "Safe Area"}
+            </Text>
+          </View>
+        </View>
 
+        <View style={styles.buttonsRow}>
+          <TouchableOpacity onPress={sendSOS} style={styles.button}>
+            <FontAwesome5 name="bell" size={24} color="#fff" />
+            <Text style={styles.buttonText}>Send SOS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() =>
+              router.push({
+                pathname: "/fakeCall",
+                params: { callerName: "Emergency Contact" },
+              })
+            }
+          >
+            <FontAwesome5 name="phone" size={24} color="#fff" />
+            <Text style={styles.buttonText}>Fake Call</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Vehicle Search Section */}
+        <View style={styles.searchCard}>
+          <Text style={styles.searchTitle}>Search Vehicle Reports</Text>
+          <View style={styles.searchContainer}>
+            <TextInput
+              value={vehicleNo}
+              onChangeText={setVehicleNo}
+              placeholder="Enter vehicle number"
+              placeholderTextColor="#999"
+              style={styles.searchInput}
+            />
+            <TouchableOpacity 
+              onPress={() => getReportsByVehicleNo(vehicleNo)}
+              style={styles.searchButton}
+              disabled={searchingVehicle}
+            >
+              {searchingVehicle ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <FontAwesome5 name="search" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Display Vehicle Reports */}
+          {harassmentReports && harassmentReports.length > 0 && (
+            <View style={styles.reportsContainer}>
+              <Text style={styles.reportsTitle}>
+                Reports for {vehicleNo} ({harassmentReports.length})
+              </Text>
+              {harassmentReports.map((report: any, index: number) => (
+                <View key={index} style={styles.reportItem}>
+                  <Text style={styles.reportText}>
+                    <Text style={styles.reportLabel}>Type:</Text> {report.harassmentType || 'N/A'}
+                  </Text>
+                  <Text style={styles.reportText}>
+                    <Text style={styles.reportLabel}>Location:</Text> {report.location || 'N/A'}
+                  </Text>
+                  <Text style={styles.reportText}>
+                    <Text style={styles.reportLabel}>Extra-info:</Text> {report.extraInfo || 'N/A'}
+                  </Text>
+                  {report.image && (
+                    <View style={styles.imageContainer}>
+                      <Text style={styles.reportLabel}>Evidence:</Text>
+                      <Image 
+                        source={{ uri: report.image }} 
+                        style={styles.reportImage}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  )}
+                  <Text style={styles.reportText}>
+                    <Text style={styles.reportLabel}>Date:</Text> {
+                      report.createdAt 
+                        ? new Date(report.createdAt).toLocaleDateString()
+                        : 'N/A'
+                    }
+                  </Text>
+                  {report.description && (
+                    <Text style={styles.reportText}>
+                      <Text style={styles.reportLabel}>Details:</Text> {report.description}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </LinearGradient>
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -253,19 +467,178 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    marginTop: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 5,
-    color: '#333',
+    color: '#fff',
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
+  },
+  address: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  addressTxt: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  statsCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    margin: 20,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 10,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#ccc',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  safetyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    gap: 8,
+  },
+  safeBadge: {
+    backgroundColor: '#4CAF50',
+  },
+  unsafeBadge: {
+    backgroundColor: '#FF4444',
+  },
+  safetyText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  buttonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 20,
+    paddingHorizontal: 20,
+  },
+  button: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: '#b24bf3',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  searchCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    margin: 20,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  searchTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 15,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 16,
+  },
+  searchButton: {
+    backgroundColor: '#b24bf3',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  reportsContainer: {
+    marginTop: 20,
+  },
+  reportsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  reportItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  reportText: {
+    color: '#fff',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  reportLabel: {
+    fontWeight: 'bold',
+    color: '#b24bf3',
+  },imageContainer: {
+    marginTop: 10,
+  },
+  reportImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginTop: 8,
   },
   card: {
     backgroundColor: '#fff',

@@ -274,9 +274,10 @@ import {
 import MapView, { Polygon, Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import axios from 'axios';
 import * as Location from 'expo-location';
+import { FontAwesome5 } from '@expo/vector-icons';
 
 // Your backend URL
-const API_URL = 'http://172.16.252.116:3001';
+const API_URL = 'http://10.160.116.113:3001';
 
 interface Route {
   recommendedRoute: {
@@ -386,6 +387,7 @@ const SafeRouteMap = () => {
 
       const zones = response.data.features || [];
       setHeatmapZones(zones);
+      console.log('Safety zones loaded.',zones);
       
       console.log(`Loaded ${zones.length} zones`);
       
@@ -571,7 +573,7 @@ const SafeRouteMap = () => {
           returnKeyType="search"
         />
         <TouchableOpacity style={styles.searchButton} onPress={searchDestination}>
-          <Text style={styles.searchButtonText}>🔍</Text>
+          <Text style={styles.searchButtonText}><FontAwesome5 name='search' color={'white'} size={20}/></Text>
         </TouchableOpacity>
       </View>
 
@@ -684,7 +686,7 @@ const SafeRouteMap = () => {
 
       {/* My Location Button */}
       <TouchableOpacity style={styles.myLocationButton} onPress={useMyLocation}>
-        <Text style={styles.myLocationText}>📍</Text>
+        <Text style={styles.myLocationText}><FontAwesome5 name='location-arrow' color={'blue'} size={25}/></Text>
       </TouchableOpacity>
 
       {/* Legend */}
@@ -794,7 +796,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   searchButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4A0E4E',
     marginLeft: 10,
     paddingHorizontal: 15,
     borderRadius: 8,

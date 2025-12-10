@@ -112,7 +112,7 @@ export default function ModalScreen() {
         createdAt: new Date().toISOString(),
       };
 
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://172.16.252.116:3001';
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://10.160.116.113:3001';
       await fetch(`${apiUrl}/sos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

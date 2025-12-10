@@ -36,7 +36,7 @@ const AddPost = () => {
         createdAt: new Date().toISOString(),
       };
 
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.43.31:3001';
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://10.160.116.113:3001';
       const res = await fetch(`${apiUrl}/post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
