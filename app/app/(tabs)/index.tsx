@@ -3,22 +3,26 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Alert,
   TextInput,
-  Image
+  Image,
+  Modal,
+  FlatList
 } from 'react-native';
 import * as Location from "expo-location"
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL
+import * as Contacts from "expo-contacts"
+import { styles } from './styles/home.styles';
+import { Contact } from './types/home.types';
+import { DeviceContact } from './types/home.types';
 
 export default function HomeScreen() {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL
   const { getToken } = useAuth();
   const { user } = useUser();
   const [reports, setReports] = useState<any>(null);
@@ -33,6 +37,16 @@ export default function HomeScreen() {
   const [vehicleNo, setVehicleNo] = useState<string>('')
   const [harassmentReports, setHarassmentReports] = useState<any>(null);
   const [searchingVehicle, setSearchingVehicle] = useState(false);
+  const [existingContacts, setExistingContacts] = useState<Contact[]>([])
+
+  // Contact picker states
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [savingContacts, setSavingContacts] = useState(false);
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+
   const [region, setRegion] = useState({
     latitude: 6.9271,
     longitude: 79.8612,
@@ -40,6 +54,12 @@ export default function HomeScreen() {
     longitudeDelta: 0.05,
   });
   const router = useRouter()
+
+  // Filter contacts based on search query
+  const filteredContacts = deviceContacts.filter(contact =>
+    contact.name.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+    contact.phoneNumbers?.[0]?.number?.includes(contactSearchQuery)
+  );
 
   useEffect(() => {
     (async () => {
@@ -56,7 +76,6 @@ export default function HomeScreen() {
         const loc = await Location.getCurrentPositionAsync({});
         setLocation(loc);
 
-        // Update region with current location
         const currentRegion = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -65,7 +84,6 @@ export default function HomeScreen() {
         };
         setRegion(currentRegion);
 
-        // get address
         const geo = await Location.reverseGeocodeAsync({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -84,10 +102,8 @@ export default function HomeScreen() {
           ].filter(part => part);
           const fullAddress = addressParts.join(', ');
           setAddress(fullAddress);
-          console.log('Address:', fullAddress)
         }
 
-        // Calculate bounds around current location
         const bounds = {
           minLat: currentRegion.latitude - currentRegion.latitudeDelta / 2,
           maxLat: currentRegion.latitude + currentRegion.latitudeDelta / 2,
@@ -95,9 +111,6 @@ export default function HomeScreen() {
           maxLng: currentRegion.longitude + currentRegion.longitudeDelta / 2,
         };
 
-        console.log('Fetching heatmap with bounds:', bounds);
-
-        // Fetch heatmap data to get counts - USE POST METHOD
         const response = await fetch(`${apiUrl}/safe-route/heatmap`, {
           method: 'POST',
           headers: {
@@ -106,39 +119,26 @@ export default function HomeScreen() {
           body: JSON.stringify(bounds),
         });
 
-        console.log('Heatmap response status:', response.status);
-
         if (response.ok) {
           const data = await response.json();
-          console.log("Heatmap data received:", data);
 
-          // Calculate total counts from features
           if (data.features && data.features.length > 0) {
-            // Get the first feature's counts (they're the same across all features)
             const firstFeature = data.features[0];
             if (firstFeature.properties) {
               const totalSos = firstFeature.properties.sosCount || 0;
               const totalHarassment = firstFeature.properties.harassmentCount || 0;
 
-              console.log('SOS Count:', totalSos, 'Harassment Count:', totalHarassment);
               setSosCount(totalSos);
               setHarassmentCount(totalHarassment);
 
-              // Determine if area is unsafe (using stats total)
               const totalIncidents = data.stats?.totalIncidents || 0;
-              setUnsafe(totalIncidents > 5);
+              setUnsafe(totalSos > 0 || totalHarassment > 5);
             }
           } else {
-            // No incidents in area - safe zone
-            console.log('No incidents - safe area');
             setSosCount(0);
             setHarassmentCount(0);
             setUnsafe(false);
           }
-        } else {
-          const errorText = await response.text();
-          console.error('Failed to fetch heatmap data:', response.status, errorText);
-          Alert.alert('Error', 'Failed to load safety data');
         }
       } catch (err) {
         console.error("Location/Heatmap error:", err);
@@ -148,6 +148,133 @@ export default function HomeScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    getExistingContacts()
+  }, [])
+
+  const pickContacts = async () => {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please grant contacts permission to add emergency contacts');
+      return;
+    }
+
+    setLoadingContacts(true);
+    try {
+      const response = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+
+      if (response.data && response.data.length > 0) {
+        const contactsWithPhones = response.data.filter(
+          contact => contact.phoneNumbers && contact.phoneNumbers.length > 0
+        );
+        setDeviceContacts(contactsWithPhones);
+        setShowContactPicker(true);
+      } else {
+        Alert.alert('No Contacts', 'No contacts found on your device');
+      }
+    } catch (error) {
+      console.error('Error loading contacts:', error);
+      Alert.alert('Error', 'Failed to load contacts');
+    } finally {
+      setLoadingContacts(false);
+    }
+  }
+
+  const getExistingContacts = async () => {
+    try {
+      const token = await getToken()
+      const res = await fetch(`${apiUrl}/sos/contacts?userId=${user?.id}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setExistingContacts(data)
+      }
+    } catch (error) {
+      console.error('Error fetching contacts', error)
+    }
+  }
+
+  const toggleContactSelection = (contactId: string) => {
+    const newSelected = new Set(selectedContacts);
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId);
+    } else {
+      // Limit to 5 contacts
+      if (newSelected.size >= 5) {
+        Alert.alert('Limit Reached', 'You can only select up to 5 emergency contacts');
+        return;
+      }
+      newSelected.add(contactId);
+    }
+    setSelectedContacts(newSelected);
+  }
+
+  const saveSelectedContacts = async () => {
+    if (selectedContacts.size === 0) {
+      Alert.alert('No Selection', 'Please select at least one contact');
+      return;
+    }
+    setSavingContacts(true);
+    try {
+      const token = await getToken();
+
+      const contactsToSave = deviceContacts
+        .filter(c => selectedContacts.has(c.id))
+        .map(c => ({
+          name: c.name,
+          phoneNumber: c.phoneNumbers?.[0]?.number || ''
+        }));
+
+      const response = await fetch(`${apiUrl}/sos/contacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId: user?.id,contacts: contactsToSave })
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Emergency contacts added successfully');
+        setShowContactPicker(false);
+        setSelectedContacts(new Set());
+        setContactSearchQuery('');
+        await getExistingContacts();
+      } else {
+        throw new Error('Failed to save contacts');
+      }
+    } catch (error) {
+      console.error('Error saving contacts:', error);
+      Alert.alert('Error', 'Failed to save emergency contacts');
+    } finally {
+      setSavingContacts(false);
+    }
+  }
+
+  const removeContact = async (contactId: number) => {
+    try {
+      if (!contactId) {
+        return
+      }
+      const res = await fetch(`${apiUrl}/sos/contacts/${contactId}/user/${user?.id}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
+      const data = await res.json();
+      if (data.success) {
+        setExistingContacts((prevContacts) => prevContacts.filter((contact) => contact.id !== contactId));
+      }
+    } catch (err) {
+      console.error("Error deleting post:", err);
+    }
+  }
 
   const sendSOS = async () => {
     try {
@@ -176,7 +303,6 @@ export default function HomeScreen() {
         address: addressStr,
         createdAt: new Date().toISOString(),
       }
-
       await fetch(`${apiUrl}/sos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,9 +310,9 @@ export default function HomeScreen() {
       })
 
       Alert.alert("SOS sent", "Your emergency contacts have been notified")
-      console.log("payload for api", payload, apiUrl)
     } catch (error) {
-      console.log("SOS error", error)
+      console.error("SOS error", error)
+      Alert.alert("Error", "Failed to send SOS. Please try again.")
     }
   }
 
@@ -199,9 +325,6 @@ export default function HomeScreen() {
       if (!token) {
         throw new Error('No authentication token');
       }
-
-      console.log('Fetching from:', `${apiUrl}/reports/mine`);
-
       const response = await fetch(`${apiUrl}/reports/mine`, {
         method: 'GET',
         headers: {
@@ -210,15 +333,11 @@ export default function HomeScreen() {
         },
       });
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`${response.status}: ${errorText}`);
       }
-
       const data = await response.json();
-      console.log('Data received:', data);
       setReports(data);
     } catch (err: any) {
       console.error('Fetch error:', err);
@@ -247,7 +366,6 @@ export default function HomeScreen() {
       if (!token) {
         throw new Error('No authentication token');
       }
-
       const response = await fetch(`${apiUrl}/report-harassment?vehicleNo=${encodeURIComponent(vehicleNumber)}`, {
         method: 'GET',
         headers: {
@@ -262,10 +380,8 @@ export default function HomeScreen() {
       }
 
       const data = await response.json();
-      console.log('Vehicle reports received:', data);
       setHarassmentReports(data);
 
-      // Show results summary
       if (data && data.length > 0) {
         Alert.alert(
           'Reports Found',
@@ -287,6 +403,37 @@ export default function HomeScreen() {
       setSearchingVehicle(false);
     }
   }
+
+  // Render individual contact item in picker
+  const renderContactItem = ({ item }: { item: DeviceContact }) => {
+    const isSelected = selectedContacts.has(item.id);
+    const phoneNumber = item.phoneNumbers?.[0]?.number || 'No number';
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.contactPickerItem,
+          isSelected && styles.contactPickerItemSelected
+        ]}
+        onPress={() => toggleContactSelection(item.id)}
+      >
+        <View style={styles.contactPickerLeft}>
+          <View style={[
+            styles.checkbox,
+            isSelected && styles.checkboxSelected
+          ]}>
+            {isSelected && (
+              <FontAwesome5 name="check" size={12} color="#fff" />
+            )}
+          </View>
+          <View style={styles.contactPickerInfo}>
+            <Text style={styles.contactPickerName}>{item.name}</Text>
+            <Text style={styles.contactPickerPhone}>{phoneNumber}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading && !reports) {
     return (
@@ -316,6 +463,92 @@ export default function HomeScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
+      {/* CONTACT PICKER MODAL */}
+      <Modal
+        visible={showContactPicker}
+        animationType="slide"
+        transparent={false}
+      >
+        <LinearGradient
+          colors={['#4A0E4E', 'black']}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Emergency Contacts</Text>
+            <Text style={styles.modalSubtitle}>
+              {selectedContacts.size}/5 selected
+            </Text>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchBarContainer}>
+            <FontAwesome5 name="search" size={16} color="#999" />
+            <TextInput
+              style={styles.searchBar}
+              placeholder="Search contacts..."
+              placeholderTextColor="#999"
+              value={contactSearchQuery}
+              onChangeText={setContactSearchQuery}
+            />
+            {contactSearchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setContactSearchQuery('')}>
+                <FontAwesome5 name="times-circle" size={16} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Contacts List */}
+          <FlatList
+            data={filteredContacts}
+            renderItem={renderContactItem}
+            keyExtractor={(item) => item.id}
+            style={styles.contactsList}
+            contentContainerStyle={styles.contactsListContent}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <FontAwesome5 name="address-book" size={50} color="#666" />
+                <Text style={styles.emptyText}>
+                  {contactSearchQuery ? 'No contacts found' : 'No contacts available'}
+                </Text>
+              </View>
+            }
+          />
+
+          {/* Action Buttons */}
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => {
+                setShowContactPicker(false);
+                setSelectedContacts(new Set());
+                setContactSearchQuery('');
+              }}
+              disabled={savingContacts}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                styles.saveButton,
+                (selectedContacts.size === 0 || savingContacts) && styles.saveButtonDisabled
+              ]}
+              onPress={saveSelectedContacts}
+              disabled={selectedContacts.size === 0 || savingContacts}
+            >
+              {savingContacts ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  Save ({selectedContacts.size})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </Modal>
+
       <ScrollView>
         <View style={styles.header}>
           <Text style={styles.title}>
@@ -349,6 +582,7 @@ export default function HomeScreen() {
               </View>
             </View>
           )}
+
           <View style={[styles.safetyBadge, unsafe ? styles.unsafeBadge : styles.safeBadge]}>
             <FontAwesome5
               name={unsafe ? "exclamation-circle" : "shield-alt"}
@@ -391,7 +625,7 @@ export default function HomeScreen() {
               placeholderTextColor="#999"
               style={styles.searchInput}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => getReportsByVehicleNo(vehicleNo)}
               style={styles.searchButton}
               disabled={searchingVehicle}
@@ -424,8 +658,8 @@ export default function HomeScreen() {
                   {report.image && (
                     <View style={styles.imageContainer}>
                       <Text style={styles.reportLabel}>Evidence:</Text>
-                      <Image 
-                        source={{ uri: report.image }} 
+                      <Image
+                        source={{ uri: report.image }}
                         style={styles.reportImage}
                         resizeMode="cover"
                       />
@@ -433,7 +667,7 @@ export default function HomeScreen() {
                   )}
                   <Text style={styles.reportText}>
                     <Text style={styles.reportLabel}>Date:</Text> {
-                      report.createdAt 
+                      report.createdAt
                         ? new Date(report.createdAt).toLocaleDateString()
                         : 'N/A'
                     }
@@ -448,302 +682,50 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* Emergency Contacts Section */}
+        <View style={styles.contactsCard}>
+          <View style={styles.contactsHeader}>
+            <Text style={styles.contactsTitle}>Emergency Contacts</Text>
+            <TouchableOpacity
+              onPress={pickContacts}
+              style={styles.addContactButton}
+              disabled={loadingContacts}
+            >
+              {loadingContacts ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <FontAwesome5 name="plus" size={16} color="#fff" />
+                  <Text style={styles.addContactText}>Add</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {existingContacts.length > 0 ? (
+            <View style={styles.contactsListContainer}>
+              {existingContacts.map((contact, index) => (
+                <View key={index} style={styles.contactItem}>
+                  <FontAwesome5 name="user-circle" size={24} color="#b24bf3" />
+                  <View style={styles.contactInfo}>
+                    <Text style={styles.contactName}>{contact.name}</Text>
+                    <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
+                    <TouchableOpacity onPress={() => removeContact(contact.id)}>
+                      <FontAwesome5 name="trash" size={10} color='red' />
+                    </TouchableOpacity>
+
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.noContactsText}>
+              No emergency contacts added yet. Tap "Add" to select contacts.
+            </Text>
+          )}
+        </View>
       </ScrollView>
     </LinearGradient>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    padding: 20,
-    marginTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#fff',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  address: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  addressTxt: {
-    fontSize: 16,
-    color: '#fff',
-  },
-  statsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    margin: 20,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  statsTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 10,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#ccc',
-    marginTop: 5,
-    textAlign: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  safetyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    gap: 8,
-  },
-  safeBadge: {
-    backgroundColor: '#4CAF50',
-  },
-  unsafeBadge: {
-    backgroundColor: '#FF4444',
-  },
-  safetyText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  buttonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 20,
-    paddingHorizontal: 20,
-  },
-  button: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 30,
-    paddingVertical: 20,
-    borderRadius: 15,
-    borderWidth: 3,
-    borderColor: '#b24bf3',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  searchCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    margin: 20,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  searchTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    color: '#fff',
-    fontSize: 16,
-  },
-  searchButton: {
-    backgroundColor: '#b24bf3',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 60,
-  },
-  reportsContainer: {
-    marginTop: 20,
-  },
-  reportsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
-  },
-  reportItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  reportText: {
-    color: '#fff',
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  reportLabel: {
-    fontWeight: 'bold',
-    color: '#b24bf3',
-  },imageContainer: {
-    marginTop: 10,
-  },
-  reportImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 10,
-    marginTop: 8,
-  },
-  card: {
-    backgroundColor: '#fff',
-    margin: 15,
-    padding: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    color: '#333',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  label: {
-    flex: 1,
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-  },
-  value: {
-    flex: 2,
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  roleBadge: {
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
-  smallText: {
-    fontSize: 12,
-  },
-  successBanner: {
-    backgroundColor: '#d4edda',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: '#c3e6cb',
-  },
-  successText: {
-    color: '#155724',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-    fontSize: 16,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#d32f2f',
-    marginBottom: 10,
-  },
-  errorText: {
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  retryButton: {
-    backgroundColor: '#d32f2f',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  refreshButton: {
-    backgroundColor: '#007AFF',
-    margin: 15,
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
