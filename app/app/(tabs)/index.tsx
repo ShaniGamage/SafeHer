@@ -712,7 +712,7 @@ export default function HomeScreen() {
                     <Text style={styles.contactName}>{contact.name}</Text>
                     <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
                     <TouchableOpacity onPress={() => removeContact(contact.id)}>
-                      <FontAwesome5 name="trash" size={10} color='red' />
+                      <FontAwesome5 name="trash-alt" size={10} color='red' />
                     </TouchableOpacity>
 
                   </View>

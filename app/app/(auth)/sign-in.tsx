@@ -1,4 +1,6 @@
 import { useSignIn } from '@clerk/clerk-expo';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -44,52 +46,62 @@ export default function SignIn() {
   };
 
   return (
+
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Sign In</Text>
-        
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          value={emailAddress}
-          placeholder="Email"
-          placeholderTextColor="#999"
-          onChangeText={setEmailAddress}
-          keyboardType="email-address"
-        />
+      <LinearGradient
+        colors={['#4A0E4E', 'black', 'black']}
+        style={{ flex: 1 }}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <View style={styles.content}>
+          <Text style={styles.header}><FontAwesome5 name='shield-alt' size={50} />SafeHER</Text>
+          <Text style={styles.title}>Sign In</Text>
 
-        <TextInput
-          style={styles.input}
-          value={password}
-          placeholder="Password"
-          placeholderTextColor="#999"
-          secureTextEntry
-          onChangeText={setPassword}
-        />
+          <TextInput
+            style={styles.input}
+            autoCapitalize="none"
+            value={emailAddress}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            onChangeText={setEmailAddress}
+            keyboardType="email-address"
+          />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={onSignInPress}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Text>
-        </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            value={password}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            secureTextEntry
+            onChangeText={setPassword}
+          />
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/(auth)/sign-up" asChild>
-            <TouchableOpacity>
-              <Text style={styles.link}>Sign Up</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onSignInPress}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Link href="/(auth)/sign-up" asChild>
+              <TouchableOpacity>
+                <Text style={styles.link}>Sign Up</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
     </KeyboardAvoidingView>
+
   );
 }
 
@@ -103,27 +115,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  header: {
+    color: 'white',
+    fontSize: 50,
+    textAlign: 'center',
+    marginBottom: 20
+  },
   title: {
-    fontSize: 32,
+    fontSize: 25,
     fontWeight: 'bold',
     marginBottom: 40,
+    color: 'white',
     textAlign: 'center',
+    textTransform: 'uppercase'
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#2c2c2e',
+    color:'white',
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'transparent',
     padding: 15,
     borderRadius: 10,
+    borderWidth: 3,
+    borderColor: '#b24bf3',
     marginTop: 10,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#593876',
   },
   buttonText: {
     color: '#fff',
