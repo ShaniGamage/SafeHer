@@ -6,6 +6,9 @@ import * as ImagePicker from 'expo-image-picker'
 import { useUser } from '@clerk/clerk-expo'
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps'
 import { LinearGradient } from 'expo-linear-gradient';
+import { Route } from 'expo-router/build/Route'
+import { router } from 'expo-router'
+import { FontAwesome5 } from '@expo/vector-icons'
 
 const Report = () => {
     const [location, setLocation] = useState<Location.LocationObject | null>(null)
@@ -21,6 +24,8 @@ const Report = () => {
     const [loading, setLoading] = useState(false)
     const [permission, requestPermission] = Camera.useCameraPermissions()
     const cameraRef = useRef<Camera.CameraView>(null)
+
+    const [showMenu, setShowMenu] = useState(false);
 
     const { user } = useUser()
 
@@ -72,7 +77,6 @@ const Report = () => {
             if (!addressText || addressText.trim().length < 3) {
                 return
             }
-
             const geocoded = await Location.geocodeAsync(addressText)
 
             if (geocoded && geocoded.length > 0) {
@@ -447,7 +451,28 @@ const Report = () => {
                 contentContainerStyle={styles.contentContainer}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Report Harassment</Text>
+                <View style={styles.titleSec}>
+                    <Text style={styles.title}>Report Harassment</Text>
+                    <View>
+                        <TouchableOpacity onPress={() => setShowMenu(!showMenu)}>
+                            <FontAwesome5 name='bars' color={'white'} size={25} />
+                        </TouchableOpacity>
+
+                        {showMenu && (
+                            <View style={styles.dropdownMenu}>
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        setShowMenu(false);
+                                        router.push('/userReports');
+                                    }}
+                                >
+                                    <Text style={styles.menuText}>My Reports</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
 
                 <TextInput
                     style={styles.input}
@@ -600,12 +625,39 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingBottom: 40,
     },
+    titleSec: {
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent:'space-between'
+    },
     title: {
         fontSize: 28,
         fontWeight: 'bold',
         marginBottom: 24,
         textAlign: 'center',
         color: '#fff',
+    },
+    dropdownMenu: {
+        position: 'absolute',
+        top: 35,
+        right: 0,
+        backgroundColor: 'white',
+        borderRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+        minWidth: 150,
+        zIndex: 1000,
+    },
+    menuItem: {
+        padding: 12,
+        borderRadius: 8,
+    },
+    menuText: {
+        fontSize: 16,
+        color: '#333',
     },
     sectionLabel: {
         fontSize: 16,
@@ -630,7 +682,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         backgroundColor: '#2c2c2e',
         color: '#fff',
-        
+
     },
     textArea: {
         height: 100,
@@ -651,16 +703,16 @@ const styles = StyleSheet.create({
     },
     locationButton: {
         flex: 1,
-        borderWidth:3,
-        backgroundColor:'transparent',
-        borderColor:'#007AFF'
+        borderWidth: 3,
+        backgroundColor: 'transparent',
+        borderColor: '#007AFF'
     },
     buttonSecondary: {
         backgroundColor: 'transparent',
-        borderWidth:3,
-        borderColor:'#b24bf3'
+        borderWidth: 3,
+        borderColor: '#b24bf3'
     },
-    buttonGallery:{
+    buttonGallery: {
         backgroundColor: '#b24bf3'
     },
     buttonText: {
@@ -736,7 +788,7 @@ const styles = StyleSheet.create({
     submitButton: {
         backgroundColor: '#34c759',
         padding: 16,
-        marginBottom:45,
+        marginBottom: 45,
         borderRadius: 12,
         alignItems: 'center',
         shadowColor: '#000',
