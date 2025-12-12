@@ -1,35 +1,31 @@
-import { View, Text, Image, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, Image, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Alert, TextInput, Modal } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { useUser, useAuth } from '@clerk/clerk-expo'
 import { StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { FontAwesome5 } from '@expo/vector-icons'
 import { router } from 'expo-router'
+import { Report } from './(tabs)/types/report.types'
+import * as ImagePicker from 'expo-image-picker'
 
 const userReports = () => {
-
-    type Report = {
-        id:number,
-        userId?: string;
-        location: string;
-        latitude: number;
-        longitude: number;
-        vehicleNumber?: string;
-        vehicleType?: string;
-        vehicleColor?: string;
-        vehicleModel?: string;
-        harassmentType: string;
-        extraInfo?: string;
-        anonymous?: boolean;
-        image?: string;
-        createdAt: Date;
-    }
     const apiUrl = process.env.EXPO_PUBLIC_API_URL
     const { user } = useUser()
     const { getToken } = useAuth()
     const [reports, setReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
+    const [editingReport, setEditingReport] = useState<Report | null>(null)
+    const [editForm, setEditForm] = useState({
+        location: '',
+        vehicleNumber: '',
+        vehicleType: '',
+        vehicleColor: '',
+        vehicleModel: '',
+        harassmentType: '',
+        extraInfo: '',
+        image: ''
+    })
 
     const getUserReports = async (isRefreshing = false) => {
         try {
@@ -49,6 +45,28 @@ const userReports = () => {
         } finally {
             setLoading(false)
             if (isRefreshing) setRefreshing(false)
+        }
+    }
+
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.7,
+            allowsEditing: true
+        })
+
+        if (!result.canceled) {
+            setEditForm(
+                {
+                    location: editForm.location,
+                    vehicleNumber: editForm.vehicleNumber,
+                    vehicleType: editForm.vehicleType,
+                    vehicleColor: editForm.vehicleColor,
+                    vehicleModel: editForm.vehicleModel,
+                    harassmentType: editForm.harassmentType,
+                    extraInfo: editForm.extraInfo,
+                    image: result.assets[0].uri
+                })
         }
     }
 
@@ -101,13 +119,67 @@ const userReports = () => {
         }
     }
 
-    // const editReport = (reportId: number) => {
-    //     // Navigate to edit screen
-    //     router.push({
-    //         pathname: "/editReport",
-    //         params: { reportId }
-    //     })
-    // }
+    const editReport = (report: Report) => {
+        setEditingReport(report)
+        setEditForm({
+            location: report.location || '',
+            vehicleNumber: report.vehicleNumber || '',
+            vehicleType: report.vehicleType || '',
+            vehicleColor: report.vehicleColor || '',
+            vehicleModel: report.vehicleModel || '',
+            harassmentType: report.harassmentType || '',
+            extraInfo: report.extraInfo || '',
+            image: report.image || ''
+        })
+    }
+
+    const closeEditModal = () => {
+        setEditingReport(null)
+        setEditForm({
+            location: '',
+            vehicleNumber: '',
+            vehicleType: '',
+            vehicleColor: '',
+            vehicleModel: '',
+            harassmentType: '',
+            extraInfo: '',
+            image: ''
+        })
+    }
+
+    const saveEditedReport = async () => {
+        if (!editingReport) return
+
+        try {
+            const token = await getToken()
+            const res = await fetch(`${apiUrl}/report-harassment`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(editForm)
+            })
+
+            const data = await res.json()
+            if (data.success || res.ok) {
+                setReports((prevReports) =>
+                    prevReports.map((report) =>
+                        report.id === editingReport.id
+                            ? { ...report, ...editForm }
+                            : report
+                    )
+                )
+                Alert.alert('Success', 'Report updated successfully')
+                closeEditModal()
+            } else {
+                Alert.alert('Error', 'Failed to update report')
+            }
+        } catch (err) {
+            console.error("Error updating report:", err);
+            Alert.alert('Error', 'Something went wrong while updating the report')
+        }
+    }
 
     return (
         <LinearGradient
@@ -130,8 +202,8 @@ const userReports = () => {
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerSec}>
-                    <TouchableOpacity onPress={()=> router.back()}><FontAwesome5 name='arrow-left' color={'white'} size={20} /></TouchableOpacity>
-                    <Text style={styles.headerTitle}>My Reports</Text></View>
+                        <TouchableOpacity onPress={() => router.back()}><FontAwesome5 name='arrow-left' color={'white'} size={20} /></TouchableOpacity>
+                        <Text style={styles.headerTitle}>My Reports</Text></View>
                     <Text style={styles.headerSubtitle}>
                         Track your harassment reports
                     </Text>
@@ -154,17 +226,17 @@ const userReports = () => {
                             <View key={index} style={styles.reportCard}>
                                 {/* Action Buttons */}
                                 <View style={styles.actionButtons}>
-                                    <TouchableOpacity 
-                                        onPress={() => deleteReport(report.id)} 
+                                    <TouchableOpacity
+                                        onPress={() => editReport(report)}
                                         style={styles.actionButton}
                                     >
-                                        <FontAwesome5 name='pen' color={'#b24bf3'} size={16}/>
+                                        <FontAwesome5 name='pen' color={'#b24bf3'} size={16} />
                                     </TouchableOpacity>
-                                    <TouchableOpacity 
-                                        onPress={() => confirmDelete(report.id)} 
+                                    <TouchableOpacity
+                                        onPress={() => confirmDelete(report.id)}
                                         style={styles.actionButton}
                                     >
-                                        <FontAwesome5 name='trash-alt' color={'#ff4444'} size={16}/>
+                                        <FontAwesome5 name='trash-alt' color={'#ff4444'} size={16} />
                                     </TouchableOpacity>
                                 </View>
 
@@ -194,16 +266,15 @@ const userReports = () => {
                                 {/* Location */}
                                 {report.location && (
                                     <View style={styles.infoRow}>
-                                        <Text style={styles.iconText}><FontAwesome5 name='map-marker-alt' size={20} color={'white'}/></Text>
+                                        <Text style={styles.iconText}><FontAwesome5 name='map-marker-alt' size={20} color={'white'} /></Text>
                                         <Text style={styles.infoText}>{report.location}</Text>
                                     </View>
                                 )}
 
-                                {/* Description */}
-                                {report.description && (
-                                    <View style={styles.descriptionContainer}>
-                                        <Text style={styles.sectionLabel}>Details</Text>
-                                        <Text style={styles.descriptionText}>{report.description}</Text>
+                                {report.vehicleNumber && (
+                                    <View style={styles.extraInfoContainer}>
+                                        <Text style={styles.sectionLabel}>Vehicle No.</Text>
+                                        <Text style={styles.extraInfoText}>{report.vehicleNumber}</Text>
                                     </View>
                                 )}
 
@@ -214,6 +285,7 @@ const userReports = () => {
                                         <Text style={styles.extraInfoText}>{report.extraInfo}</Text>
                                     </View>
                                 )}
+
 
                                 {/* Evidence Image */}
                                 {report.image && (
@@ -241,6 +313,140 @@ const userReports = () => {
                     </View>
                 )}
             </ScrollView>
+
+            {/* Edit Modal */}
+            <Modal
+                visible={editingReport !== null}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={closeEditModal}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Edit Report</Text>
+                            <TouchableOpacity onPress={closeEditModal}>
+                                <FontAwesome5 name="times" size={24} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.modalScrollView}>
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Location</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.location}
+                                    onChangeText={(text) => setEditForm({ ...editForm, location: text })}
+                                    placeholder="Enter location"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Harassment Type</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.harassmentType}
+                                    onChangeText={(text) => setEditForm({ ...editForm, harassmentType: text })}
+                                    placeholder="Enter harassment type"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Vehicle Number</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.vehicleNumber}
+                                    onChangeText={(text) => setEditForm({ ...editForm, vehicleNumber: text })}
+                                    placeholder="Enter vehicle number"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Vehicle Type</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.vehicleType}
+                                    onChangeText={(text) => setEditForm({ ...editForm, vehicleType: text })}
+                                    placeholder="Enter vehicle type"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Vehicle Color</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.vehicleColor}
+                                    onChangeText={(text) => setEditForm({ ...editForm, vehicleColor: text })}
+                                    placeholder="Enter vehicle color"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Vehicle Model</Text>
+                                <TextInput
+                                    style={styles.formInput}
+                                    value={editForm.vehicleModel}
+                                    onChangeText={(text) => setEditForm({ ...editForm, vehicleModel: text })}
+                                    placeholder="Enter vehicle model"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                />
+                            </View>
+
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Additional Information</Text>
+                                <TextInput
+                                    style={[styles.formInput, styles.formTextArea]}
+                                    value={editForm.extraInfo}
+                                    onChangeText={(text) => setEditForm({ ...editForm, extraInfo: text })}
+                                    placeholder="Enter additional information"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                                    multiline
+                                    numberOfLines={4}
+                                />
+                            </View>
+                            <View style={styles.formGroup}>
+                                <Text style={styles.formLabel}>Evidence: </Text>
+                                {editForm.image && (
+                                    <View >
+                                        <Image
+                                            source={{ uri: editForm.image }}
+                                            style={styles.reportImage}
+                                            resizeMode="cover"
+                                        />
+                                        <TouchableOpacity
+                                            style={styles.modalButton}
+                                            onPress={pickImage}
+                                            disabled={loading}
+                                        >
+                                            <Text style={styles.buttonText}> Gallery</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={closeEditModal}
+                            >
+                                <Text style={styles.buttonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.saveButton]}
+                                onPress={saveEditedReport}
+                            >
+                                <Text style={styles.buttonText}>Save Changes</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </LinearGradient>
     )
 }
@@ -260,10 +466,10 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         marginTop: 40,
     },
-    headerSec:{
-        display:'flex',
-        flexDirection:'row',
-        gap:20
+    headerSec: {
+        display: 'flex',
+        flexDirection: 'row',
+        gap: 20
     },
     headerTitle: {
         fontSize: 32,
@@ -448,6 +654,87 @@ const styles = StyleSheet.create({
         color: 'rgba(255, 255, 255, 0.6)',
         textAlign: 'center',
         lineHeight: 22,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#1a1a1a',
+        borderRadius: 20,
+        width: '90%',
+        maxHeight: '80%',
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(178, 75, 243, 0.3)',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        paddingBottom: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    modalScrollView: {
+        maxHeight: 400,
+    },
+    formGroup: {
+        marginBottom: 16,
+    },
+    formLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#b24bf3',
+        marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    formInput: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 10,
+        padding: 12,
+        color: '#fff',
+        fontSize: 15,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    formTextArea: {
+        height: 100,
+        textAlignVertical: 'top',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 20,
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        padding: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    saveButton: {
+        backgroundColor: '#b24bf3',
+    },
+    buttonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 })
 
