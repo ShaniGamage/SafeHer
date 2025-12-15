@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const AddPost = () => {
   const router = useRouter();
@@ -59,6 +60,12 @@ const AddPost = () => {
   
 
   return (
+    <LinearGradient
+          colors={['#4A0E4E', 'black', 'black']}
+          style={{ flex: 1 }}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        >
     <ScrollView style={{ padding: 20 }}>
       <TouchableOpacity onPress={() => router.back()}>
         <Text style={{ color: 'blue', marginTop: 80 }}>Go back</Text>
@@ -105,6 +112,7 @@ const AddPost = () => {
         <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>Submit Post</Text>
       </TouchableOpacity>
     </ScrollView>
+    </LinearGradient>
   );
 };
 

@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Image, FlatList, TextInput, ScrollView } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { use, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,7 +7,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 
 const Community = () => {
   const router = useRouter();
-  const user = useUser().user?.id || "";
+  const { user } = useUser()
 
   type Post = {
     id: number;
@@ -60,7 +60,7 @@ const Community = () => {
 
     // Filter by "My Posts"
     if (showMyPosts) {
-      filtered = filtered.filter((post) => post.userId === user);
+      filtered = filtered.filter((post) => post.userId === user?.id);
     }
 
     // Filter by post type
@@ -136,7 +136,7 @@ const Community = () => {
   const deletePost = async (postId: number) => {
     try {
       const apiUrl = process.env.EXPO_PUBLIC_API_URL
-      const response = await fetch(`${apiUrl}/post/${postId}/user/${user}`, {
+      const response = await fetch(`${apiUrl}/post/${postId}/user/${user?.id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error(`Server returned ${response.status}`);
@@ -159,9 +159,7 @@ const Community = () => {
       <ScrollView>
         <View style={{
           backgroundColor: 'transparent',
-          marginBottom: 1,
-          borderBottomWidth: 1,
-          borderBottomColor: "#efefef",
+          marginBottom: 20,
         }}>
           {/* Header */}
           <View style={{
@@ -170,21 +168,31 @@ const Community = () => {
             padding: 12,
           }}>
             <View style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: "#e1e1e1",
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 10,
+
             }}>
-              <Text style={{ fontSize: 14, fontWeight: "bold" }}>
+              {/* <Text style={{ fontSize: 14, fontWeight: "bold" }}>
                 {item.anonymous ? "A" : item.userId?.charAt(0).toUpperCase()}
-              </Text>
+              </Text> */}
+              {user?.imageUrl ? (
+                <Image source={{ uri: user.imageUrl }} style={{
+                  width: 35,
+                  height: 35,
+                  borderRadius: 16,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 10,
+                }} />
+              ) : (
+                <View >
+                  <Text style={{ fontSize: 14, fontWeight: "bold" }}>
+                    {item.anonymous ? "A" : item.userId?.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "600", fontSize: 14 ,color:'#fff'}}>
-                {item.anonymous ? "Anonymous" : item.userId?.slice(0, 8)}
+              <Text style={{ fontWeight: "600", fontSize: 14, color: '#fff' }}>
+                {item.anonymous ? "Anonymous" : user?.firstName + ' ' + user?.lastName}
               </Text>
               {item.postType && (
                 <Text style={{ fontSize: 11, color: "#e3e3e3" }}>
@@ -202,7 +210,7 @@ const Community = () => {
                   borderRadius: 8,
                 }}
               >
-                <Text style={{ fontSize: 16, color: "#ef4444" }}><FontAwesome5 name='trash' size={15} color='white'/></Text>
+                <Text style={{ fontSize: 16, color: "#ef4444" }}><FontAwesome5 name='trash' size={15} color='white' /></Text>
               </TouchableOpacity>
             )}
           </View>
@@ -232,22 +240,22 @@ const Community = () => {
                 style={{ marginRight: 15 }}
               >
                 <Text style={{ fontSize: 24 }}>
-                  {isLiked ? <FontAwesome5 name='heart' solid size={30} color={'red'} /> : <FontAwesome5 name='heart' size={30} color={'white'}/>}
+                  {isLiked ? <FontAwesome5 name='heart' solid size={30} color={'red'} /> : <FontAwesome5 name='heart' size={30} color={'white'} />}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ marginRight: 15 }}>
                 <Text style={{ fontSize: 24 }}><FontAwesome5 name='comment' size={30} color={'white'} /> </Text>
               </TouchableOpacity>
-              
+
             </View>
 
             {/* Likes count */}
-            <Text style={{ fontWeight: "600", fontSize: 14, marginBottom: 8 }}>
+            <Text style={{ fontWeight: "600", fontSize: 14, marginBottom: 0 }}>
               {item.likes} {item.likes === 1 ? "like" : "likes"}
             </Text>
 
             {/* Description */}
-            <Text style={{ fontSize: 14, lineHeight: 18 }}>
+            <Text style={{ fontSize: 14, lineHeight: 15 ,color:'white'}}>
               <Text style={{ fontWeight: "600" }}>
                 {item.anonymous ? "Anonymous" : item.userId?.slice(0, 8)}
               </Text>
@@ -278,8 +286,6 @@ const Community = () => {
           <View style={{
             padding: 25,
             marginTop: 40,
-            borderBottomWidth: 1,
-            borderBottomColor: "transparent",
           }}>
             <View style={{
               display: "flex",
@@ -322,7 +328,7 @@ const Community = () => {
               paddingHorizontal: 12,
               marginBottom: 10,
             }}>
-              <Text style={{ fontSize: 16, marginRight: 8 }}><FontAwesome5 name='search' size={20} color={'white'}/></Text>
+              <Text style={{ fontSize: 16, marginRight: 8 }}><FontAwesome5 name='search' size={20} color={'white'} /></Text>
               <TextInput
                 placeholder="Search posts..."
                 placeholderTextColor={'#585c63'}
@@ -357,14 +363,14 @@ const Community = () => {
                     borderRadius: 20,
                     marginRight: 8,
                     backgroundColor: selectedFilter === type ? "#b24bf3" : "transparent",
-                    borderWidth:1,
+                    borderWidth: 1,
                     borderColor: selectedFilter === type ? "#000" : "#b24bf3",
                   }}
                 >
                   <Text style={{
                     fontSize: 13,
                     fontWeight: "600",
-                    color:  "#fff",
+                    color: "#fff",
                   }}>
                     {type}
                   </Text>
