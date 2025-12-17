@@ -17,14 +17,15 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Contacts from "expo-contacts"
-import { styles } from './styles/home.styles';
-import { Contact } from './types/home.types';
-import { DeviceContact } from './types/home.types';
+import { homeStyles } from '../../styles/index';
+import { Contact, DeviceContact } from '../../interface/contact';
+import { useSOS } from '@/hooks/useSOS';
 
 export default function HomeScreen() {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL
   const { getToken } = useAuth();
   const { user } = useUser();
+  
   const [reports, setReports] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,8 @@ export default function HomeScreen() {
   const [searchingVehicle, setSearchingVehicle] = useState(false);
   const [existingContacts, setExistingContacts] = useState<Contact[]>([])
 
-  // Contact picker states
+  const { sendSOS, loading: sosLoading, error: sosError } = useSOS(apiUrl, user?.id);
+  // Contact picker states 
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
@@ -276,46 +278,6 @@ export default function HomeScreen() {
     }
   }
 
-  const sendSOS = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert("permission required")
-        return
-      }
-
-      const loc = await Location.getCurrentPositionAsync({})
-      const address = await Location.reverseGeocodeAsync(loc.coords)
-      const addressObj = address[0];
-      const addressStr = [
-        addressObj.streetNumber,
-        addressObj.street,
-        addressObj.city,
-        addressObj.region,
-        addressObj.country,
-        addressObj.postalCode
-      ].filter(Boolean).join(', ');
-
-      const payload = {
-        userId: user?.id,
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        address: addressStr,
-        createdAt: new Date().toISOString(),
-      }
-      await fetch(`${apiUrl}/sos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      Alert.alert("SOS sent", "Your emergency contacts have been notified")
-    } catch (error) {
-      console.error("SOS error", error)
-      Alert.alert("Error", "Failed to send SOS. Please try again.")
-    }
-  }
-
   const fetchReports = async () => {
     try {
       setLoading(true);
@@ -412,23 +374,23 @@ export default function HomeScreen() {
     return (
       <TouchableOpacity
         style={[
-          styles.contactPickerItem,
-          isSelected && styles.contactPickerItemSelected
+          homeStyles.contactPickerItem,
+          isSelected && homeStyles.contactPickerItemSelected
         ]}
         onPress={() => toggleContactSelection(item.id)}
       >
-        <View style={styles.contactPickerLeft}>
+        <View style={homeStyles.contactPickerLeft}>
           <View style={[
-            styles.checkbox,
-            isSelected && styles.checkboxSelected
+            homeStyles.checkbox,
+            isSelected && homeStyles.checkboxSelected
           ]}>
             {isSelected && (
               <FontAwesome5 name="check" size={12} color="#fff" />
             )}
           </View>
-          <View style={styles.contactPickerInfo}>
-            <Text style={styles.contactPickerName}>{item.name}</Text>
-            <Text style={styles.contactPickerPhone}>{phoneNumber}</Text>
+          <View style={homeStyles.contactPickerInfo}>
+            <Text style={homeStyles.contactPickerName}>{item.name}</Text>
+            <Text style={homeStyles.contactPickerPhone}>{phoneNumber}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -437,20 +399,20 @@ export default function HomeScreen() {
 
   if (loading && !reports) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={homeStyles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading reports...</Text>
+        <Text style={homeStyles.loadingText}>Loading reports...</Text>
       </View>
     );
   }
 
   if (error && !reports) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorTitle}>Error Loading Reports</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchReports}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+      <View style={homeStyles.centerContainer}>
+        <Text style={homeStyles.errorTitle}>Error Loading Reports</Text>
+        <Text style={homeStyles.errorText}>{error}</Text>
+        <TouchableOpacity style={homeStyles.retryButton} onPress={fetchReports}>
+          <Text style={homeStyles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -471,20 +433,20 @@ export default function HomeScreen() {
       >
         <LinearGradient
           colors={['#4A0E4E', 'black']}
-          style={styles.modalContainer}
+          style={homeStyles.modalContainer}
         >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Emergency Contacts</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={homeStyles.modalHeader}>
+            <Text style={homeStyles.modalTitle}>Select Emergency Contacts</Text>
+            <Text style={homeStyles.modalSubtitle}>
               {selectedContacts.size}/5 selected
             </Text>
           </View>
 
           {/* Search Bar */}
-          <View style={styles.searchBarContainer}>
+          <View style={homeStyles.searchBarContainer}>
             <FontAwesome5 name="search" size={16} color="#999" />
             <TextInput
-              style={styles.searchBar}
+              style={homeStyles.searchBar}
               placeholder="Search contacts..."
               placeholderTextColor="#999"
               value={contactSearchQuery}
@@ -502,12 +464,12 @@ export default function HomeScreen() {
             data={filteredContacts}
             renderItem={renderContactItem}
             keyExtractor={(item) => item.id}
-            style={styles.contactsList}
-            contentContainerStyle={styles.contactsListContent}
+            style={homeStyles.contactsList}
+            contentContainerStyle={homeStyles.contactsListContent}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
+              <View style={homeStyles.emptyContainer}>
                 <FontAwesome5 name="address-book" size={50} color="#666" />
-                <Text style={styles.emptyText}>
+                <Text style={homeStyles.emptyText}>
                   {contactSearchQuery ? 'No contacts found' : 'No contacts available'}
                 </Text>
               </View>
@@ -515,9 +477,9 @@ export default function HomeScreen() {
           />
 
           {/* Action Buttons */}
-          <View style={styles.modalActions}>
+          <View style={homeStyles.modalActions}>
             <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton]}
+              style={[homeStyles.modalButton, homeStyles.cancelButton]}
               onPress={() => {
                 setShowContactPicker(false);
                 setSelectedContacts(new Set());
@@ -525,14 +487,14 @@ export default function HomeScreen() {
               }}
               disabled={savingContacts}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={homeStyles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
-                styles.modalButton,
-                styles.saveButton,
-                (selectedContacts.size === 0 || savingContacts) && styles.saveButtonDisabled
+                homeStyles.modalButton,
+                homeStyles.saveButton,
+                (selectedContacts.size === 0 || savingContacts) && homeStyles.saveButtonDisabled
               ]}
               onPress={saveSelectedContacts}
               disabled={selectedContacts.size === 0 || savingContacts}
@@ -540,7 +502,7 @@ export default function HomeScreen() {
               {savingContacts ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>
+                <Text style={homeStyles.saveButtonText}>
                   Save ({selectedContacts.size})
                 </Text>
               )}
@@ -550,58 +512,58 @@ export default function HomeScreen() {
       </Modal>
 
       <ScrollView>
-        <View style={styles.header}>
-          <Text style={styles.title}>
+        <View style={homeStyles.header}>
+          <Text style={homeStyles.title}>
             Welcome, {user?.firstName || 'User'}!
           </Text>
         </View>
 
-        <View style={styles.address}>
-          <Text style={styles.addressTxt}>
+        <View style={homeStyles.address}>
+          <Text style={homeStyles.addressTxt}>
             <FontAwesome5 name="map-marker-alt" size={20} color="white" /> {address}
           </Text>
         </View>
 
         {/* Safety Statistics Card */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Area Safety Report</Text>
+        <View style={homeStyles.statsCard}>
+          <Text style={homeStyles.statsTitle}>Area Safety Report</Text>
           {loadingCounts ? (
             <ActivityIndicator size="small" color="#FF1493" />
           ) : (
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
+            <View style={homeStyles.statsContainer}>
+              <View style={homeStyles.statItem}>
                 <FontAwesome5 name="bell" size={30} color="#FF4444" />
-                <Text style={styles.statNumber}>{sosCount}</Text>
-                <Text style={styles.statLabel}>SOS Alerts</Text>
+                <Text style={homeStyles.statNumber}>{sosCount}</Text>
+                <Text style={homeStyles.statLabel}>SOS Alerts</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
+              <View style={homeStyles.statDivider} />
+              <View style={homeStyles.statItem}>
                 <FontAwesome5 name="exclamation-triangle" size={30} color="#FF9800" />
-                <Text style={styles.statNumber}>{harassmentCount}</Text>
-                <Text style={styles.statLabel}>Harassment Reports</Text>
+                <Text style={homeStyles.statNumber}>{harassmentCount}</Text>
+                <Text style={homeStyles.statLabel}>Harassment Reports</Text>
               </View>
             </View>
           )}
 
-          <View style={[styles.safetyBadge, unsafe ? styles.unsafeBadge : styles.safeBadge]}>
+          <View style={[homeStyles.safetyBadge, unsafe ? homeStyles.unsafeBadge : homeStyles.safeBadge]}>
             <FontAwesome5
               name={unsafe ? "exclamation-circle" : "shield-alt"}
               size={16}
               color="white"
             />
-            <Text style={styles.safetyText}>
+            <Text style={homeStyles.safetyText}>
               {unsafe ? "High Risk Area" : "Safe Area"}
             </Text>
           </View>
         </View>
 
-        <View style={styles.buttonsRow}>
-          <TouchableOpacity onPress={sendSOS} style={styles.button}>
+        <View style={homeStyles.buttonsRow}>
+          <TouchableOpacity onPress={sendSOS} style={homeStyles.button}>
             <FontAwesome5 name="bell" size={24} color="#fff" />
-            <Text style={styles.buttonText}>Send SOS</Text>
+            <Text style={homeStyles.buttonText}>Send SOS</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.button}
+            style={homeStyles.button}
             onPress={() =>
               router.push({
                 pathname: "/fakeCall",
@@ -610,24 +572,24 @@ export default function HomeScreen() {
             }
           >
             <FontAwesome5 name="phone" size={24} color="#fff" />
-            <Text style={styles.buttonText}>Fake Call</Text>
+            <Text style={homeStyles.buttonText}>Fake Call</Text>
           </TouchableOpacity>
         </View>
 
         {/* Vehicle Search Section */}
-        <View style={styles.searchCard}>
-          <Text style={styles.searchTitle}>Search Vehicle Reports</Text>
-          <View style={styles.searchContainer}>
+        <View style={homeStyles.searchCard}>
+          <Text style={homeStyles.searchTitle}>Search Vehicle Reports</Text>
+          <View style={homeStyles.searchContainer}>
             <TextInput
               value={vehicleNo}
               onChangeText={setVehicleNo}
               placeholder="Enter vehicle number"
               placeholderTextColor="#999"
-              style={styles.searchInput}
+              style={homeStyles.searchInput}
             />
             <TouchableOpacity
               onPress={() => getReportsByVehicleNo(vehicleNo)}
-              style={styles.searchButton}
+              style={homeStyles.searchButton}
               disabled={searchingVehicle}
             >
               {searchingVehicle ? (
@@ -640,41 +602,41 @@ export default function HomeScreen() {
 
           {/* Display Vehicle Reports */}
           {harassmentReports && harassmentReports.length > 0 && (
-            <View style={styles.reportsContainer}>
-              <Text style={styles.reportsTitle}>
+            <View style={homeStyles.reportsContainer}>
+              <Text style={homeStyles.reportsTitle}>
                 Reports for {vehicleNo} ({harassmentReports.length})
               </Text>
               {harassmentReports.map((report: any, index: number) => (
-                <View key={index} style={styles.reportItem}>
-                  <Text style={styles.reportText}>
-                    <Text style={styles.reportLabel}>Type:</Text> {report.harassmentType || 'N/A'}
+                <View key={index} style={homeStyles.reportItem}>
+                  <Text style={homeStyles.reportText}>
+                    <Text style={homeStyles.reportLabel}>Type:</Text> {report.harassmentType || 'N/A'}
                   </Text>
-                  <Text style={styles.reportText}>
-                    <Text style={styles.reportLabel}>Location:</Text> {report.location || 'N/A'}
+                  <Text style={homeStyles.reportText}>
+                    <Text style={homeStyles.reportLabel}>Location:</Text> {report.location || 'N/A'}
                   </Text>
-                  <Text style={styles.reportText}>
-                    <Text style={styles.reportLabel}>Extra-info:</Text> {report.extraInfo || 'N/A'}
+                  <Text style={homeStyles.reportText}>
+                    <Text style={homeStyles.reportLabel}>Extra-info:</Text> {report.extraInfo || 'N/A'}
                   </Text>
                   {report.image && (
-                    <View style={styles.imageContainer}>
-                      <Text style={styles.reportLabel}>Evidence:</Text>
+                    <View style={homeStyles.imageContainer}>
+                      <Text style={homeStyles.reportLabel}>Evidence:</Text>
                       <Image
                         source={{ uri: report.image }}
-                        style={styles.reportImage}
+                        style={homeStyles.reportImage}
                         resizeMode="cover"
                       />
                     </View>
                   )}
-                  <Text style={styles.reportText}>
-                    <Text style={styles.reportLabel}>Date:</Text> {
+                  <Text style={homeStyles.reportText}>
+                    <Text style={homeStyles.reportLabel}>Date:</Text> {
                       report.createdAt
                         ? new Date(report.createdAt).toLocaleDateString()
                         : 'N/A'
                     }
                   </Text>
                   {report.description && (
-                    <Text style={styles.reportText}>
-                      <Text style={styles.reportLabel}>Details:</Text> {report.description}
+                    <Text style={homeStyles.reportText}>
+                      <Text style={homeStyles.reportLabel}>Details:</Text> {report.description}
                     </Text>
                   )}
                 </View>
@@ -684,12 +646,12 @@ export default function HomeScreen() {
         </View>
 
         {/* Emergency Contacts Section */}
-        <View style={styles.contactsCard}>
-          <View style={styles.contactsHeader}>
-            <Text style={styles.contactsTitle}>Emergency Contacts</Text>
+        <View style={homeStyles.contactsCard}>
+          <View style={homeStyles.contactsHeader}>
+            <Text style={homeStyles.contactsTitle}>Emergency Contacts</Text>
             <TouchableOpacity
               onPress={pickContacts}
-              style={styles.addContactButton}
+              style={homeStyles.addContactButton}
               disabled={loadingContacts}
             >
               {loadingContacts ? (
@@ -697,20 +659,20 @@ export default function HomeScreen() {
               ) : (
                 <>
                   <FontAwesome5 name="plus" size={16} color="#fff" />
-                  <Text style={styles.addContactText}>Add</Text>
+                  <Text style={homeStyles.addContactText}>Add</Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
 
           {existingContacts.length > 0 ? (
-            <View style={styles.contactsListContainer}>
+            <View style={homeStyles.contactsListContainer}>
               {existingContacts.map((contact, index) => (
-                <View key={index} style={styles.contactItem}>
+                <View key={index} style={homeStyles.contactItem}>
                   <FontAwesome5 name="user-circle" size={24} color="#b24bf3" />
-                  <View style={styles.contactInfo}>
-                    <Text style={styles.contactName}>{contact.name}</Text>
-                    <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
+                  <View style={homeStyles.contactInfo}>
+                    <Text style={homeStyles.contactName}>{contact.name}</Text>
+                    <Text style={homeStyles.contactPhone}>{contact.phoneNumber}</Text>
                     <TouchableOpacity onPress={() => removeContact(contact.id)}>
                       <FontAwesome5 name="trash-alt" size={10} color='red' />
                     </TouchableOpacity>
@@ -720,7 +682,7 @@ export default function HomeScreen() {
               ))}
             </View>
           ) : (
-            <Text style={styles.noContactsText}>
+            <Text style={homeStyles.noContactsText}>
               No emergency contacts added yet. Tap "Add" to select contacts.
             </Text>
           )}

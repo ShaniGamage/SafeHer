@@ -1,46 +1,36 @@
 
 // SafeRouteMap.tsx (Expo version)// SafeRouteMap.tsx - Complete Solution
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Text, 
-  Alert, 
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Alert,
   ActivityIndicator,
   TextInput,
-  Keyboard 
+  Keyboard
 } from 'react-native';
 import MapView, { Polygon, Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { Route, HeatmapZone } from '@/interface/Route';
+import * as Notifications from 'expo-notifications'
 
-// Your backend URL
-const API_URL = 'http://10.160.116.113:3001';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-interface Route {
-  recommendedRoute: {
-    coordinates: [number, number][];
-    safetyRating: string;
-    distance: number;
-    duration: number;
-  };
-  alternativeRoutes?: {
-    coordinates: [number, number][];
-  }[];
-  dangerZones?: unknown[];
-}
 
-interface HeatmapZone {
-  properties: {
-    riskLevel: 'high' | 'medium' | 'low';
-  };
-  geometry: {
-    coordinates: [number, number][][];
-  };
-}
-
+//configure notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner:true,
+    shouldShowList:true
+  })
+})
 const SafeRouteMap = () => {
   const mapRef = useRef<MapView>(null);
   const [heatmapZones, setHeatmapZones] = useState<HeatmapZone[]>([]);
@@ -49,6 +39,7 @@ const SafeRouteMap = () => {
   const [endPoint, setEndPoint] = useState<{ latitude: number; longitude: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [region, setRegion] = useState({
     latitude: 6.9271,
@@ -57,17 +48,27 @@ const SafeRouteMap = () => {
     longitudeDelta: 0.05,
   });
 
-  // Get user's current location on mount
+  useEffect(()=>{
+    requestNotificationPermissions();
+    getCurrentLocation()
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(response =>{
+      console.log('notification tapped:',response)
+    })
+   // return ()=>subscription.remove()
+  },[])
+  
+  // user's current location 
   useEffect(() => {
     getCurrentLocation();
   }, []);
 
-  // Load heatmap when map region changes
+  // Load heatmap 
   useEffect(() => {
     loadHeatmapZones();
   }, []);
 
-  // Debounced heatmap reload on region change
+  // Debounced heatmap 
   useEffect(() => {
     const timer = setTimeout(() => {
       loadHeatmapZones();
@@ -75,6 +76,32 @@ const SafeRouteMap = () => {
     return () => clearTimeout(timer);
   }, [region.latitude, region.longitude]);
 
+  const requestNotificationPermissions = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Notification Permission',
+          'Enable notifications to get alerts when entering high-risk areas'
+        );
+        setNotificationsEnabled(false);
+        return;
+      }
+      
+      setNotificationsEnabled(true);
+      console.log('Notifications enabled');
+    } catch (error) {
+      console.error('Failed to get notification permissions:', error);
+      setNotificationsEnabled(false);
+    }
+  }
   const getCurrentLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -88,14 +115,14 @@ const SafeRouteMap = () => {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
-      
+
       setUserLocation(coords);
       setRegion({
         ...coords,
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       });
-      
+
       console.log('User location:', coords);
     } catch (error) {
       console.error('Failed to get location:', error);
@@ -127,17 +154,26 @@ const SafeRouteMap = () => {
 
       const zones = response.data.features || [];
       setHeatmapZones(zones);
-      console.log('Safety zones loaded.',zones);
-      
+      if (zones.includes(userLocation)) {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: "High rish area around",
+            body: `you are entering a ${zones.riskLevel}`
+          },
+          trigger: null
+        })
+      }
+      console.log('Safety zones loaded.', zones);
+
       console.log(`Loaded ${zones.length} zones`);
-      
+
       if (response.data.stats) {
         console.log('Stats:', response.data.stats);
       }
     } catch (error) {
       const axiosError = error as any;
       console.error('Failed to load zones:', (error as Error).message);
-      
+
       if (heatmapZones.length === 0 && axiosError.response?.status === 404) {
         Alert.alert(
           'Setup Required',
@@ -173,7 +209,7 @@ const SafeRouteMap = () => {
     setLoading(true);
     try {
       console.log('Calculating safest route...');
-      
+
       const response = await axios.post(
         `${API_URL}/safe-route/calculate`,
         {
@@ -187,7 +223,7 @@ const SafeRouteMap = () => {
       );
 
       setRoute(response.data);
-      
+
       // Fit map to show entire route
       if (mapRef.current && response.data.recommendedRoute) {
         const coords = response.data.recommendedRoute.coordinates.map((c: any[]) => ({
@@ -199,9 +235,9 @@ const SafeRouteMap = () => {
           animated: true,
         });
       }
-      
+
       console.log('Route calculated:', response.data.recommendedRoute.safetyRating);
-      
+
       // Show safety alert
       const safetyRating = response.data.recommendedRoute.safetyRating;
       if (safetyRating.includes('High Risk') || safetyRating.includes('Caution')) {
@@ -220,10 +256,10 @@ const SafeRouteMap = () => {
 
   const searchDestination = async () => {
     if (!searchQuery.trim()) return;
-    
+
     Keyboard.dismiss();
     setLoading(true);
-    
+
     try {
       // Simple geocoding using Nominatim (free)
       const response = await axios.get(
@@ -246,7 +282,7 @@ const SafeRouteMap = () => {
 
       // Set as destination
       setEndPoint(destination);
-      
+
       // If no start point, use current location
       if (!startPoint) {
         if (userLocation) {
@@ -313,7 +349,7 @@ const SafeRouteMap = () => {
           returnKeyType="search"
         />
         <TouchableOpacity style={styles.searchButton} onPress={searchDestination}>
-          <Text style={styles.searchButtonText}><FontAwesome5 name='search' color={'white'} size={20}/></Text>
+          <Text style={styles.searchButtonText}><FontAwesome5 name='search' color={'white'} size={20} /></Text>
         </TouchableOpacity>
       </View>
 
@@ -328,7 +364,7 @@ const SafeRouteMap = () => {
         showsUserLocation={true}
         showsMyLocationButton={false}
       >
-        {/* Risk Zones - High (Red) */}
+        {/* Risk Zones  */}
         {heatmapZones
           .filter(z => z.properties.riskLevel === 'high')
           .map((zone, idx) => (
@@ -344,7 +380,7 @@ const SafeRouteMap = () => {
             />
           ))}
 
-        {/* Risk Zones - Medium (Orange) */}
+        {/* Risk Zones */}
         {heatmapZones
           .filter(z => z.properties.riskLevel === 'medium')
           .map((zone, idx) => (
@@ -360,7 +396,7 @@ const SafeRouteMap = () => {
             />
           ))}
 
-        {/* Risk Zones - Low (Yellow) */}
+        {/* Risk Zones */}
         {heatmapZones
           .filter(z => z.properties.riskLevel === 'low')
           .map((zone, idx) => (
@@ -426,7 +462,7 @@ const SafeRouteMap = () => {
 
       {/* My Location Button */}
       <TouchableOpacity style={styles.myLocationButton} onPress={useMyLocation}>
-        <Text style={styles.myLocationText}><FontAwesome5 name='location-arrow' color={'blue'} size={25}/></Text>
+        <Text style={styles.myLocationText}><FontAwesome5 name='location-arrow' color={'blue'} size={25} /></Text>
       </TouchableOpacity>
 
       {/* Legend */}

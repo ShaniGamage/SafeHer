@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { FontAwesome5 } from '@expo/vector-icons'
 import { router } from 'expo-router'
-import { Report } from './(tabs)/types/report.types'
+import { Report } from '../interface/report'
 import * as ImagePicker from 'expo-image-picker'
 
 const userReports = () => {

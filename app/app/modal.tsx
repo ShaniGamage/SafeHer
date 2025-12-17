@@ -1,12 +1,12 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { 
-  View, 
-  ActivityIndicator, 
-  StyleSheet, 
-  Alert, 
-  TouchableOpacity, 
+import {
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
   Text,
   SafeAreaView,
   Animated,
@@ -14,17 +14,27 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import {FontAwesome5} from '@expo/vector-icons';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { sendSOS } from '@/services/sendSOS.service';
+import { useSOS } from '@/hooks/useSOS';
 
 const { width } = Dimensions.get('window');
 
 export default function ModalScreen() {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL
+
   const { isSignedIn, isLoaded } = useAuth();
   const { user } = useUser();
+  const { getToken } = useAuth();
+  const token = getToken()
   const [unsafe, setUnsafe] = useState<boolean>(true);
   const [location, setLocation] = useState<any>(null);
   const [address, setAddress] = useState<string>("");
   const [pulseAnim] = useState(new Animated.Value(1));
+  
+  const { sendSOS, loading: sosLoading, error: sosError } = useSOS(apiUrl, user?.id);
+
+
 
   useEffect(() => {
     // Pulsing animation for SOS button
@@ -84,49 +94,7 @@ export default function ModalScreen() {
     })();
   }, []);
 
-  const sendSOS = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert("Permission required");
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({});
-      const address = await Location.reverseGeocodeAsync(loc.coords);
-      const addressObj = address[0];
-      const addressStr = [
-        addressObj.streetNumber,
-        addressObj.street,
-        addressObj.city,
-        addressObj.region,
-        addressObj.country,
-        addressObj.postalCode
-      ].filter(Boolean).join(', ');
-
-      const payload = {
-        userId: user?.id,
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        address: addressStr,
-        createdAt: new Date().toISOString(),
-      };
-
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://10.160.116.113:3001';
-      await fetch(`${apiUrl}/sos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      Alert.alert("SOS sent", "Your emergency contacts have been notified");
-      console.log("payload for api", payload, apiUrl);
-
-    } catch (error) {
-      console.log("SOS error", error);
-    }
-  };
-
+  
   const handleSafe = () => {
     setUnsafe(false);
     router.replace("/(tabs)");
@@ -165,12 +133,12 @@ export default function ModalScreen() {
         {/* Main Content - Centered SOS Button */}
         <View style={styles.mainContent}>
           {/* SOS Button with Pulsing Effect */}
-          <TouchableOpacity 
+          <TouchableOpacity
             activeOpacity={0.8}
             onPress={sendSOS}
             style={styles.sosButtonContainer}
           >
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.sosButtonOuter,
                 { transform: [{ scale: pulseAnim }] }
@@ -207,7 +175,7 @@ export default function ModalScreen() {
             }
           >
             <View style={styles.actionButtonInner}>
-              <Text style={styles.actionButtonIcon}><FontAwesome5 name="phone-alt" size={20} color="white"/></Text>
+              <Text style={styles.actionButtonIcon}><FontAwesome5 name="phone-alt" size={20} color="white" /></Text>
             </View>
             <Text style={styles.actionButtonLabel}>Fake Call</Text>
           </TouchableOpacity>
@@ -217,7 +185,7 @@ export default function ModalScreen() {
             onPress={handleSafe}
           >
             <View style={[styles.actionButtonInner, styles.safeButtonInner]}>
-              <Text style={styles.actionButtonIcon}><FontAwesome5 name="check" size={20} color="white"/></Text>
+              <Text style={styles.actionButtonIcon}><FontAwesome5 name="check" size={20} color="white" /></Text>
             </View>
             <Text style={styles.actionButtonLabel}>I'm Safe</Text>
           </TouchableOpacity>
@@ -236,7 +204,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    padding:20,
+    padding: 20,
     marginTop: 20,
     marginBottom: 40,
   },
