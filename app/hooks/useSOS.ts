@@ -121,6 +121,7 @@ export const useSOS = (
         'Your emergency contacts have been notified with your location',
         [{ text: 'OK' }]
       );
+      console.log(apiUrl)
 
     } catch (err) {
       // Handle abort
@@ -136,6 +137,7 @@ export const useSOS = (
       
       setError(errorMessage);
       console.error('SOS error:', err);
+      console.log(apiUrl)
 
       Alert.alert(
         'Failed to Send SOS',
