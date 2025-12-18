@@ -23,7 +23,7 @@ import { useSOS } from '@/hooks/useSOS';
 import { API_CONFIG } from '@/config/api';
 
 export default function HomeScreen() {
-  const apiUrl = API_CONFIG.BASE_URL
+  const apiUrl=process.env.EXPO_PUBLIC_API_URL
   const { getToken } = useAuth();
   const { user } = useUser();
   
@@ -116,7 +116,7 @@ export default function HomeScreen() {
           maxLng: currentRegion.longitude + currentRegion.longitudeDelta / 2,
         };
 
-        const response = await fetch(`${API_CONFIG.BASE_URL}/safe-route/heatmap`, {
+        const response = await fetch(`${apiUrl}/safe-route/heatmap`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ export default function HomeScreen() {
   const getExistingContacts = async () => {
     try {
       const token = await getToken()
-      const res = await fetch(`${API_CONFIG.BASE_URL}/sos/contacts?userId=${user?.id}`, {
+      const res = await fetch(`${apiUrl}/sos/contacts?userId=${user?.id}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -236,7 +236,7 @@ export default function HomeScreen() {
           phoneNumber: c.phoneNumbers?.[0]?.number || ''
         }));
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/sos/contacts`, {
+      const response = await fetch(`${apiUrl}/sos/contacts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
