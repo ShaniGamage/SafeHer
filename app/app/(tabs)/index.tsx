@@ -20,9 +20,10 @@ import * as Contacts from "expo-contacts"
 import { homeStyles } from '../../styles/index';
 import { Contact, DeviceContact } from '../../interface/contact';
 import { useSOS } from '@/hooks/useSOS';
+import { API_CONFIG } from '@/config/api';
 
 export default function HomeScreen() {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL
+  const apiUrl = API_CONFIG.BASE_URL
   const { getToken } = useAuth();
   const { user } = useUser();
   
