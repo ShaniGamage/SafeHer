@@ -1,38 +1,37 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { SosModule } from './service/sos/sos.module'; // Import the MODULE
+import { SosModule } from './service/sos/sos.module';
 import { ReportsModule } from './reports/reports.module';
 import { HarassmentReportModule } from './service/harassment-report/harassment-report.module';
 import { PostModule } from './service/post/post.module';
 import { HeatmapModule } from './service/heatmap/heatmap.module';
-// ... other imports
 
 @Module({
   imports: [
+    // Load environment variables globally
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+
+    // TypeORM configuration for Railway PostgreSQL
     TypeOrmModule.forRoot({
       type: 'postgres',
-      // host: process.env.DB_HOST,
-      // port: 5432,
-      // username: process.env.DB_USERNAME,
-      // password: process.env.DB_PASSWORD,
-      // database: process.env.DB_NAME,
-      // entities: [__dirname + '/models/**/*.{ts,js}'],
-      // synchronize: true, // set false in production
-      url: process.env.DATABASE_URL, // Railway provides this automatically
-      entities: [__dirname + '/models/**/*.{ts,js}'], // Explicit list is safer
-      synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev only
+      url: process.env.DATABASE_URL, // Railway automatically provides this
+      entities: [__dirname + '/models/**/*.{ts,js}'], // All your entities in src/models
+      synchronize: process.env.NODE_ENV !== 'production', // auto-create tables in dev only
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       logging: process.env.NODE_ENV !== 'production',
-    })
-    ,
+    }),
+
+    // Import your feature modules
     SosModule,
-    ReportsModule, HarassmentReportModule, PostModule, HeatmapModule
+    ReportsModule,
+    HarassmentReportModule,
+    PostModule,
+    HeatmapModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}

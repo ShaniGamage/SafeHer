@@ -1,7 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-import { Sos } from "./sos";
 
-@Entity()
+@Entity('contacts')
 export class Contacts {
     @PrimaryGeneratedColumn()
     id: number;

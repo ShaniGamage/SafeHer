@@ -2,7 +2,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm'
 import { Likes } from './likes'
 
-@Entity()
+@Entity('post')
 export class Post {
     @PrimaryGeneratedColumn()
     id: number

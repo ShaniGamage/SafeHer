@@ -1,4 +1,4 @@
-import { Post } from "src/models/post";
+import { Post } from './post';
 import { CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, Unique, Column, JoinColumn } from "typeorm";
 
 @Entity('likes')

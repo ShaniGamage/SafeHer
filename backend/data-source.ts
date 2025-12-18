@@ -1,0 +1,14 @@
+// backend/data-source.ts
+import 'reflect-metadata';
+import { DataSource } from 'typeorm';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+export const AppDataSource = new DataSource({
+  type: 'postgres',
+  url: process.env.DATABASE_URL,
+  entities: [__dirname + '/src/models/**/*.{ts,js}'],
+  synchronize: false, 
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  logging: process.env.NODE_ENV !== 'production',
+});
