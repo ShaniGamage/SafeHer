@@ -4,7 +4,7 @@ const isDevelopment = __DEV__;
 
 export const API_CONFIG = {
   BASE_URL: isDevelopment 
-    ? 'http://172.16.253.11:3001' 
+    ? 'http://72.16.252.230:3001' 
     : 'https://discerning-charisma-production-b8f6.up.railway.app',
 };
 

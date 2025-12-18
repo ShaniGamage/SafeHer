@@ -3,24 +3,16 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Enable CORS
   app.enableCors({
     origin: '*',
     credentials: true,
   });
-  // Add health check endpoint
-  app.getHttpAdapter().get('/health', (req, res) => {
-    res.json({ 
-      status: 'ok', 
-      message: 'SafeHer Backend is running',
-      timestamp: new Date().toISOString()
-    });
-  });
 
-  await app.listen(3001, '0.0.0.0');
-  console.log('Backend running on http://localhost:3001');
-  console.log('Mobile access: http://172.16.253.11:3001');
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0');
+
 }
 
 bootstrap();

@@ -65,6 +65,7 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
+    
     (async () => {
       setUnsafe(true)
       setLoadingCounts(true)
@@ -76,6 +77,7 @@ export default function HomeScreen() {
           return;
         }
 
+        console.log(API_CONFIG.BASE_URL)
         const loc = await Location.getCurrentPositionAsync({});
         setLocation(loc);
 
