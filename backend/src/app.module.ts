@@ -15,16 +15,15 @@ import { HeatmapModule } from './service/heatmap/heatmap.module';
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      url: process.env.DB_HOST,
-      autoLoadEntities: true,
-      synchronize: true,
-      ssl: { rejectUnauthorized: false },
-      extra: {
-        max: 5,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      },
-    }),
+      host: process.env.DB_HOST,
+      port: 5432,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      entities: [__dirname + '/models/**/*.{ts,js}'],
+      synchronize: true, // set false in production
+    })
+    ,
     SosModule,
     ReportsModule, HarassmentReportModule, PostModule, HeatmapModule
   ],

@@ -1,7 +1,7 @@
 //Shape of the data stored in DB
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm'
 
-@Entity()
+@Entity('harassment_report')
 export class HarassmentReport {
     @PrimaryGeneratedColumn()
     id: number

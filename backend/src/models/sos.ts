@@ -3,7 +3,7 @@ import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm'
 import { Contacts } from './contacts'
 // import { Contacts } from './contacts'
 
-@Entity()
+@Entity('sos')
 export class Sos {
     @PrimaryGeneratedColumn()
     id: number
