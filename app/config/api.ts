@@ -9,9 +9,6 @@ export const API_CONFIG = {
 };
 
 // Optional: Add specific endpoints for cleaner code
-export const API_ENDPOINTS = {
-  REPORT_HARASSMENT: '/report-harassment',
-  SOS: '/sos',
-  POSTS: '/posts',
-  HEATMAP: '/heatmap',
+export const getApiUrl = (endpoint: string) => {
+  return `${API_CONFIG.BASE_URL}${endpoint}`;
 };

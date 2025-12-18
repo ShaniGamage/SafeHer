@@ -9,6 +9,14 @@ async function bootstrap() {
     origin: '*',
     credentials: true,
   });
+  // Add health check endpoint
+  app.getHttpAdapter().get('/health', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      message: 'SafeHer Backend is running',
+      timestamp: new Date().toISOString()
+    });
+  });
 
   await app.listen(3001, '0.0.0.0');
   console.log('Backend running on http://localhost:3001');
