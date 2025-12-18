@@ -15,13 +15,18 @@ import { HeatmapModule } from './service/heatmap/heatmap.module';
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST,
-      port: 5432,
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [__dirname + '/models/**/*.{ts,js}'],
-      synchronize: true, // set false in production
+      // host: process.env.DB_HOST,
+      // port: 5432,
+      // username: process.env.DB_USERNAME,
+      // password: process.env.DB_PASSWORD,
+      // database: process.env.DB_NAME,
+      // entities: [__dirname + '/models/**/*.{ts,js}'],
+      // synchronize: true, // set false in production
+      url: process.env.DATABASE_URL, // Railway provides this automatically
+      entities: [__dirname + '/models/**/*.{ts,js}'], // Explicit list is safer
+      synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev only
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      logging: process.env.NODE_ENV !== 'production',
     })
     ,
     SosModule,
