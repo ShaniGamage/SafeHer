@@ -86,9 +86,10 @@ export const homeStyles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 25,
     gap: 8,
+    borderWidth:2
   },
   safeBadge: {
-    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
   },
   unsafeBadge: {
     backgroundColor: '#FF4444',

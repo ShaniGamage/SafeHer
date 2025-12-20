@@ -190,7 +190,7 @@ export default function TabsLayout() {
               }}
             >
               <FontAwesome5 
-                name="map-marker" 
+                name="location-arrow" 
                 size={20} 
                 color={focused ? '#FFFFFF' : color} 
               />

@@ -189,6 +189,7 @@ const userReports = () => {
             end={{ x: 0, y: 1 }}
         >
             <ScrollView
+
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={

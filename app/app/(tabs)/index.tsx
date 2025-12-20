@@ -10,7 +10,8 @@ import {
   TextInput,
   Image,
   Modal,
-  FlatList
+  FlatList,
+  RefreshControl
 } from 'react-native';
 import * as Location from "expo-location"
 import { useRouter } from 'expo-router';
@@ -20,13 +21,15 @@ import * as Contacts from "expo-contacts"
 import { homeStyles } from '../../styles/index';
 import { Contact, DeviceContact } from '../../interface/contact';
 import { useSOS } from '@/hooks/useSOS';
-import { API_CONFIG } from '@/config/api';
+import FindNearestPolice from '@/components/features/findNearestPolice';
+import { locationService } from '@/services/location.service';
 
 export default function HomeScreen() {
-  const apiUrl=process.env.EXPO_PUBLIC_API_URL
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL
   const { getToken } = useAuth();
   const { user } = useUser();
   
+  const [refreshing, setRefreshing] = useState(false);
   const [reports, setReports] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +45,7 @@ export default function HomeScreen() {
   const [existingContacts, setExistingContacts] = useState<Contact[]>([])
 
   const { sendSOS, loading: sosLoading, error: sosError } = useSOS(apiUrl, user?.id);
+  
   // Contact picker states 
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
@@ -65,98 +69,100 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    
-    (async () => {
-      setUnsafe(true)
-      setLoadingCounts(true)
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission denied", "Location access is required.");
-          setLoadingCounts(false);
-          return;
-        }
-
-        console.log(API_CONFIG.BASE_URL)
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc);
-
-        const currentRegion = {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        };
-        setRegion(currentRegion);
-
-        const geo = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        })
-
-        if (geo.length > 0) {
-          const item = geo[0]
-          const addressParts = [
-            item.streetNumber,
-            item.street,
-            item.city,
-            item.district,
-            item.region,
-            item.country,
-            item.postalCode
-          ].filter(part => part);
-          const fullAddress = addressParts.join(', ');
-          setAddress(fullAddress);
-        }
-
-        const bounds = {
-          minLat: currentRegion.latitude - currentRegion.latitudeDelta / 2,
-          maxLat: currentRegion.latitude + currentRegion.latitudeDelta / 2,
-          minLng: currentRegion.longitude - currentRegion.longitudeDelta / 2,
-          maxLng: currentRegion.longitude + currentRegion.longitudeDelta / 2,
-        };
-
-        const response = await fetch(`${apiUrl}/safe-route/heatmap`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(bounds),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          if (data.features && data.features.length > 0) {
-            const firstFeature = data.features[0];
-            if (firstFeature.properties) {
-              const totalSos = firstFeature.properties.sosCount || 0;
-              const totalHarassment = firstFeature.properties.harassmentCount || 0;
-
-              setSosCount(totalSos);
-              setHarassmentCount(totalHarassment);
-
-              const totalIncidents = data.stats?.totalIncidents || 0;
-              setUnsafe(totalSos > 0 || totalHarassment > 5);
-            }
-          } else {
-            setSosCount(0);
-            setHarassmentCount(0);
-            setUnsafe(false);
-          }
-        }
-      } catch (err) {
-        console.error("Location/Heatmap error:", err);
-        Alert.alert('Error', 'Failed to get location data');
-      } finally {
-        setLoadingCounts(false);
-      }
-    })();
+    initializeLocation();
   }, []);
 
   useEffect(() => {
     getExistingContacts()
   }, [])
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const initializeLocation = async () => {
+    setUnsafe(true)
+    setLoadingCounts(true)
+    try {
+      const loc = await locationService.getCurrentLocation()
+      if (!loc) {
+        setError('Location permission denied or unavailable.')
+        return
+      }
+      setLocation(loc);
+      const { latitude, longitude } = loc.coords
+
+      const currentRegion = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+      setRegion(currentRegion);
+
+      const geo = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      })
+
+      if (geo.length > 0) {
+        const item = geo[0]
+        const addressParts = [
+          item.streetNumber,
+          item.street,
+          item.city,
+          item.district,
+          item.region,
+          item.country,
+          item.postalCode
+        ].filter(part => part);
+        const fullAddress = addressParts.join(', ');
+        setAddress(fullAddress);
+      }
+
+      const bounds = {
+        minLat: currentRegion.latitude - currentRegion.latitudeDelta / 2,
+        maxLat: currentRegion.latitude + currentRegion.latitudeDelta / 2,
+        minLng: currentRegion.longitude - currentRegion.longitudeDelta / 2,
+        maxLng: currentRegion.longitude + currentRegion.longitudeDelta / 2,
+      };
+
+      const response = await fetch(`${apiUrl}/safe-route/heatmap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bounds),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.features && data.features.length > 0) {
+          const firstFeature = data.features[0];
+          if (firstFeature.properties) {
+            const totalSos = firstFeature.properties.sosCount || 0;
+            const totalHarassment = firstFeature.properties.harassmentCount || 0;
+
+            setSosCount(totalSos);
+            setHarassmentCount(totalHarassment);
+
+            const totalIncidents = data.stats?.totalIncidents || 0;
+            setUnsafe(totalSos > 0 || totalHarassment > 5);
+          }
+        } else {
+          setSosCount(0);
+          setHarassmentCount(0);
+          setUnsafe(false);
+        }
+      }
+    } catch (err) {
+      console.error("Location/Heatmap error:", err);
+      Alert.alert('Error', 'Failed to get location data');
+    } finally {
+      setLoadingCounts(false);
+    }
+  };
 
   const pickContacts = async () => {
     const { status } = await Contacts.requestPermissionsAsync();
@@ -164,7 +170,6 @@ export default function HomeScreen() {
       Alert.alert('Permission Required', 'Please grant contacts permission to add emergency contacts');
       return;
     }
-
     setLoadingContacts(true);
     try {
       const response = await Contacts.getContactsAsync({
@@ -242,7 +247,7 @@ export default function HomeScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ userId: user?.id,contacts: contactsToSave })
+        body: JSON.stringify({ userId: user?.id, contacts: contactsToSave })
       });
 
       if (response.ok) {
@@ -313,10 +318,6 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchReports();
-  }, []);
-
   const getReportsByVehicleNo = async (vehicleNumber: string) => {
     if (!vehicleNumber.trim()) {
       Alert.alert('Error', 'Please enter a vehicle number');
@@ -368,6 +369,22 @@ export default function HomeScreen() {
       setSearchingVehicle(false);
     }
   }
+
+  //  await async operations in onRefresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        getExistingContacts(),
+        fetchReports(),
+        initializeLocation()
+      ]);
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Render individual contact item in picker
   const renderContactItem = ({ item }: { item: DeviceContact }) => {
@@ -514,7 +531,19 @@ export default function HomeScreen() {
         </LinearGradient>
       </Modal>
 
-      <ScrollView>
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor="#fff"
+            colors={['#b24bf3', '#FF1493']}
+            progressBackgroundColor="#4A0E4E"
+          />
+        }
+      >
         <View style={homeStyles.header}>
           <Text style={homeStyles.title}>
             Welcome, {user?.firstName || 'User'}!
@@ -526,6 +555,7 @@ export default function HomeScreen() {
             <FontAwesome5 name="map-marker-alt" size={20} color="white" /> {address}
           </Text>
         </View>
+        <View><FindNearestPolice /></View>
 
         {/* Safety Statistics Card */}
         <View style={homeStyles.statsCard}>
@@ -679,7 +709,6 @@ export default function HomeScreen() {
                     <TouchableOpacity onPress={() => removeContact(contact.id)}>
                       <FontAwesome5 name="trash-alt" size={10} color='red' />
                     </TouchableOpacity>
-
                   </View>
                 </View>
               ))}

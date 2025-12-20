@@ -278,7 +278,7 @@ const SafeRouteMap = () => {
         longitude: parseFloat(result.lon),
       };
 
-      console.log('🔍 Found:', result.display_name);
+      console.log('Found:', result.display_name);
 
       // Set as destination
       setEndPoint(destination);
@@ -487,7 +487,7 @@ const SafeRouteMap = () => {
           </View>
         )}
         {heatmapZones.length === 0 && (
-          <Text style={styles.legendSafe}>✅ Safe Area</Text>
+          <Text style={styles.legendSafe}><FontAwesome5 name='shield-alt' color={'white'} size={16}/> Safe Area</Text>
         )}
       </View>
 
@@ -499,15 +499,15 @@ const SafeRouteMap = () => {
           </Text>
           <View style={styles.routeDetails}>
             <Text style={styles.routeDetail}>
-              📏 {(route.recommendedRoute.distance / 1000).toFixed(2)} km
+              <FontAwesome5 name='route' color={'white'} size={16}/> {(route.recommendedRoute.distance / 1000).toFixed(2)} km
             </Text>
             <Text style={styles.routeDetail}>
-              ⏱️ {Math.round(route.recommendedRoute.duration / 60)} min
+              <FontAwesome5 name='clock' color={'white'} size={16}/> {Math.round(route.recommendedRoute.duration / 60)} min
             </Text>
           </View>
           {route.recommendedRoute.safetyRating.includes('High Risk') && (
             <Text style={styles.warningText}>
-              ⚠️ This route passes through high-risk areas. Exercise caution!
+              <FontAwesome5 name="exclamation-triangle" size={16} color="#FF9800" /> This route passes through high-risk areas. Exercise caution!
             </Text>
           )}
           <TouchableOpacity style={styles.clearButton} onPress={clearRoute}>
@@ -520,14 +520,14 @@ const SafeRouteMap = () => {
       {!startPoint && !loading && (
         <View style={styles.instructions}>
           <Text style={styles.instructionText}>
-            👆 Tap map to set start point or search destination
+            Tap map to set start point or search destination
           </Text>
         </View>
       )}
       {startPoint && !endPoint && !loading && (
         <View style={styles.instructions}>
           <Text style={styles.instructionText}>
-            👆 Tap map or search for destination
+            Tap map or search for destination
           </Text>
         </View>
       )}
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   },
   routeCard: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 90,
     left: 10,
     right: 10,
     backgroundColor: 'white',

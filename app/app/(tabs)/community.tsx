@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity, Image, FlatList, TextInput, ScrollView } from "react-native";
-import React, { use, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, Image, FlatList, TextInput, ScrollView, RefreshControl } from "react-native";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,6 +8,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 const Community = () => {
   const router = useRouter();
   const { user } = useUser()
+  const [refreshing, setRefreshing] = useState(false)
 
   type Post = {
     id: number;
@@ -150,126 +151,139 @@ const Community = () => {
     }
   };
 
+  // FIXED: Proper async refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchPosts();
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const renderPost = ({ item }: { item: Post }) => {
     const isLiked = likedPosts.has(item.id);
-    const isMyPost = item.userId === user;
+    const isMyPost = item.userId === user?.id; // FIXED: was comparing to user object instead of user.id
 
     return (
-
-      <ScrollView>
+      <View style={{
+        backgroundColor: 'transparent',
+        marginBottom: 20,
+      }}>
+        {/* Header */}
         <View style={{
-          backgroundColor: 'transparent',
-          marginBottom: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          padding: 12,
         }}>
-          {/* Header */}
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            padding: 12,
-          }}>
-            <View style={{
-
-            }}>
-              {/* <Text style={{ fontSize: 14, fontWeight: "bold" }}>
-                {item.anonymous ? "A" : item.userId?.charAt(0).toUpperCase()}
-              </Text> */}
-              {user?.imageUrl ? (
-                <Image source={{ uri: user.imageUrl }} style={{
-                  width: 35,
-                  height: 35,
-                  borderRadius: 16,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: 10,
-                }} />
-              ) : (
-                <View >
-                  <Text style={{ fontSize: 14, fontWeight: "bold" }}>
-                    {item.anonymous ? "A" : item.userId?.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "600", fontSize: 14, color: '#fff' }}>
-                {item.anonymous ? "Anonymous" : user?.firstName + ' ' + user?.lastName}
-              </Text>
-              {item.postType && (
-                <Text style={{ fontSize: 11, color: "#e3e3e3" }}>
-                  {item.postType}
+          <View>
+            {user?.imageUrl ? (
+              <Image source={{ uri: user.imageUrl }} style={{
+                width: 35,
+                height: 35,
+                borderRadius: 16,
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 10,
+              }} />
+            ) : (
+              <View style={{
+                width: 35,
+                height: 35,
+                borderRadius: 16,
+                backgroundColor: '#b24bf3',
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 10,
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: "bold", color: '#fff' }}>
+                  {item.anonymous ? "A" : item.userId?.charAt(0).toUpperCase()}
                 </Text>
-              )}
-            </View>
-            <Text style={{ fontSize: 20 }}>•••</Text>
-
-            {isMyPost && (
-              <TouchableOpacity
-                onPress={() => deletePost(item.id)}
-                style={{
-                  padding: 8,
-                  borderRadius: 8,
-                }}
-              >
-                <Text style={{ fontSize: 16, color: "#ef4444" }}><FontAwesome5 name='trash' size={15} color='white' /></Text>
-              </TouchableOpacity>
+              </View>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "600", fontSize: 14, color: '#fff' }}>
+              {item.anonymous ? "Anonymous" : user?.firstName + ' ' + user?.lastName}
+            </Text>
+            {item.postType && (
+              <Text style={{ fontSize: 11, color: "#e3e3e3" }}>
+                {item.postType}
+              </Text>
             )}
           </View>
 
-          {/* Image */}
-          {item.image && (
-            <Image
-              source={{ uri: item.image }}
+          {isMyPost && (
+            <TouchableOpacity
+              onPress={() => deletePost(item.id)}
               style={{
-                width: "100%",
-                height: 400,
-                backgroundColor: "#f0f0f0",
+                padding: 8,
+                borderRadius: 8,
               }}
-              resizeMode="cover"
-            />
+            >
+              <FontAwesome5 name='trash' size={15} color='white' />
+            </TouchableOpacity>
           )}
-
-          {/* Actions */}
-          <View style={{ padding: 12 }}>
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 8,
-            }}>
-              <TouchableOpacity
-                onPress={() => likePost(item.id)}
-                style={{ marginRight: 15 }}
-              >
-                <Text style={{ fontSize: 24 }}>
-                  {isLiked ? <FontAwesome5 name='heart' solid size={30} color={'red'} /> : <FontAwesome5 name='heart' size={30} color={'white'} />}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ marginRight: 15 }}>
-                <Text style={{ fontSize: 24 }}><FontAwesome5 name='comment' size={30} color={'white'} /> </Text>
-              </TouchableOpacity>
-
-            </View>
-
-            {/* Likes count */}
-            <Text style={{ fontWeight: "600", fontSize: 14, marginBottom: 0 }}>
-              {item.likes} {item.likes === 1 ? "like" : "likes"}
-            </Text>
-
-            {/* Description */}
-            <Text style={{ fontSize: 14, lineHeight: 15 ,color:'white'}}>
-              <Text style={{ fontWeight: "600" }}>
-                {item.anonymous ? "Anonymous" : item.userId?.slice(0, 8)}
-              </Text>
-              {"  "}
-              {item.description}
-            </Text>
-
-            {/* Timestamp */}
-            <Text style={{ fontSize: 11, color: "#999", marginTop: 8 }}>
-              {new Date(item.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
         </View>
-      </ScrollView>
+
+        {/* Image */}
+        {item.image && (
+          <Image
+            source={{ uri: item.image }}
+            style={{
+              width: "100%",
+              height: 400,
+              backgroundColor: "#f0f0f0",
+            }}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Actions */}
+        <View style={{ padding: 12 }}>
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+          }}>
+            <TouchableOpacity
+              onPress={() => likePost(item.id)}
+              style={{ marginRight: 15 }}
+            >
+              <FontAwesome5 
+                name='heart' 
+                solid={isLiked}
+                size={30} 
+                color={isLiked ? 'red' : 'white'} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginRight: 15 }}>
+              <FontAwesome5 name='comment' size={30} color={'white'} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Likes count */}
+          <Text style={{ fontWeight: "600", fontSize: 14, marginBottom: 4, color: '#fff' }}>
+            {item.likes} {item.likes === 1 ? "like" : "likes"}
+          </Text>
+
+          {/* Description */}
+          <Text style={{ fontSize: 14, lineHeight: 20, color: 'white' }}>
+            <Text style={{ fontWeight: "600" }}>
+              {item.anonymous ? "Anonymous" : item.userId?.slice(0, 8)}
+            </Text>
+            {"  "}
+            {item.description}
+          </Text>
+
+          {/* Timestamp */}
+          <Text style={{ fontSize: 11, color: "#999", marginTop: 8 }}>
+            {new Date(item.createdAt).toLocaleDateString()}
+          </Text>
+        </View>
+      </View>
     );
   };
 
@@ -280,7 +294,19 @@ const Community = () => {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
     >
-      <ScrollView>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#b24bf3"
+            colors={['#b24bf3', '#FF1493']}
+            progressBackgroundColor="#4A0E4E"
+          />
+        }
+      >
         <View style={{ flex: 1 }}>
           {/* Header */}
           <View style={{
@@ -292,7 +318,6 @@ const Community = () => {
               flexDirection: "row",
               justifyContent: "space-between",
               alignItems: "center",
-
             }}>
               <Text style={{
                 fontSize: 28,
@@ -313,7 +338,7 @@ const Community = () => {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontSize: 18, marginRight: 8 }}><FontAwesome5 name="plus" size={30} color={'white'} /></Text>
+                <FontAwesome5 name="plus" size={30} color={'white'} />
               </TouchableOpacity>
             </View>
 
@@ -328,7 +353,7 @@ const Community = () => {
               paddingHorizontal: 12,
               marginBottom: 10,
             }}>
-              <Text style={{ fontSize: 16, marginRight: 8 }}><FontAwesome5 name='search' size={20} color={'white'} /></Text>
+              <FontAwesome5 name='search' size={20} color={'white'} style={{ marginRight: 8 }} />
               <TextInput
                 placeholder="Search posts..."
                 placeholderTextColor={'#585c63'}
@@ -338,6 +363,7 @@ const Community = () => {
                   flex: 1,
                   paddingVertical: 10,
                   fontSize: 14,
+                  color: '#fff',
                 }}
               />
               {searchQuery.length > 0 && (
@@ -351,7 +377,7 @@ const Community = () => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 0 }}
+              style={{ marginBottom: 10 }}
             >
               {postTypes.map((type) => (
                 <TouchableOpacity
@@ -385,7 +411,7 @@ const Community = () => {
                 flexDirection: "row",
                 alignItems: "center",
                 paddingVertical: 10,
-                marginBottom: 0,
+                marginBottom: 10,
               }}
             >
               <View style={{
@@ -438,6 +464,7 @@ const Community = () => {
               renderItem={renderPost}
               keyExtractor={(item) => item.id.toString()}
               showsVerticalScrollIndicator={false}
+              scrollEnabled={false}
             />
           )}
         </View>
