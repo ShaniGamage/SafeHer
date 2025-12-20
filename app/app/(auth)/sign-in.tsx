@@ -1,4 +1,4 @@
-import { useSignIn } from '@clerk/clerk-expo';
+import { useSignIn, useOAuth } from '@clerk/clerk-expo';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
@@ -12,15 +12,47 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignIn() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
 
+  const oauth = useOAuth({ strategy: 'oauth_google' });
+
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const onGoogleSignIn = async () => {
+    if (!oauth.startOAuthFlow) {
+      Alert.alert('Error', 'Google Sign-In is not available');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      const { createdSessionId, setActive: setActiveSession } = await oauth.startOAuthFlow();
+
+      if (createdSessionId && setActiveSession) {
+        await setActiveSession({ session: createdSessionId });
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Error', 'Google sign-in incomplete');
+      }
+    } catch (err: any) {
+      console.error('OAuth error:', err);
+      Alert.alert('Error', err?.message || 'Failed to sign in with Google');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const onSignInPress = async () => {
     if (!isLoaded) return;
@@ -46,7 +78,6 @@ export default function SignIn() {
   };
 
   return (
-
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
@@ -58,8 +89,38 @@ export default function SignIn() {
         end={{ x: 0, y: 1 }}
       >
         <View style={styles.content}>
-          <Text style={styles.header}><FontAwesome5 name='shield-alt' size={50} />SafeHER</Text>
+          <Image
+            source={require('../../assets/images/safeher-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.header}>
+            SafeHER
+          </Text>
           <Text style={styles.title}>Sign In</Text>
+
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={onGoogleSignIn}
+            disabled={googleLoading}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Image source={require('../../assets/images/google-color.png')}
+                  style={styles.google}
+                  resizeMode="contain" />
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <TextInput
             style={styles.input}
@@ -69,6 +130,7 @@ export default function SignIn() {
             placeholderTextColor="#999"
             onChangeText={setEmailAddress}
             keyboardType="email-address"
+            editable={!loading}
           />
 
           <TextInput
@@ -78,6 +140,7 @@ export default function SignIn() {
             placeholderTextColor="#999"
             secureTextEntry
             onChangeText={setPassword}
+            editable={!loading}
           />
 
           <TouchableOpacity
@@ -101,7 +164,6 @@ export default function SignIn() {
         </View>
       </LinearGradient>
     </KeyboardAvoidingView>
-
   );
 }
 
@@ -129,9 +191,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textTransform: 'uppercase'
   },
+  googleButton: {
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  googleButtonText: {
+    color: '#4A0E4E',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: '#fff',
+    fontWeight: '600',
+  },
   input: {
     backgroundColor: '#2c2c2e',
-    color:'white',
+    color: 'white',
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
@@ -165,5 +257,16 @@ const styles = StyleSheet.create({
   link: {
     color: '#007AFF',
     fontWeight: '600',
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  google: {
+    width: 25,
+    height: 25,
+    alignSelf: 'center',
   },
 });
